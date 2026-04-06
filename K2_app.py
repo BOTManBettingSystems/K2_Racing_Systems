@@ -13,17 +13,18 @@ from datetime import datetime
 def check_password():
     def password_entered():
         # The app now securely fetches passwords from the Streamlit Secrets vault
-        admin_p = st.secrets["passwords"]["admin"]
-        guest_p = st.secrets["passwords"]["guest"]
-        
-        entered = st.session_state.get("password_input", "")
-        if entered in [admin_p, guest_p]:
-            st.session_state["password_correct"] = True
-            st.session_state["is_admin"] = (entered == admin_p)
-            if "password_input" in st.session_state:
-                del st.session_state["password_input"]
-        else:
-            st.session_state["password_correct"] = False
+        if "passwords" in st.secrets:
+            admin_p = st.secrets["passwords"]["admin"]
+            guest_p = st.secrets["passwords"]["guest"]
+            
+            entered = st.session_state.get("password_input", "")
+            if entered in [admin_p, guest_p]:
+                st.session_state["password_correct"] = True
+                st.session_state["is_admin"] = (entered == admin_p)
+                if "password_input" in st.session_state:
+                    del st.session_state["password_input"]
+                return
+        st.session_state["password_correct"] = False
             
     if "password_correct" not in st.session_state:
         st.markdown("<h2 style='text-align: center; color: #002147;'>K² Racing Systems</h2>", unsafe_allow_html=True)
@@ -59,7 +60,6 @@ def load_all_data():
         df_all['Date_Key'] = df_all['Date'].apply(clean_date)
         df_all['Date_DT'] = pd.to_datetime(df_all['Date_Key'], format='%y%m%d', errors='coerce')
         
-        # --- MOVED UP: Pre-calculate all ranks BEFORE splitting the data ---
         df_all['No. of Top'] = pd.to_numeric(df_all.get('No. of Top', 0), errors='coerce').fillna(0)
         df_all['Total'] = pd.to_numeric(df_all.get('Total', 0), errors='coerce').fillna(0)
         df_all['Primary Rank'] = df_all.groupby(['Date_Key', 'Time', 'Course'])['No. of Top'].transform(lambda x: x.rank(ascending=False, method='min'))
@@ -67,7 +67,6 @@ def load_all_data():
         if 'MSAI Rank' not in df_all.columns: df_all['MSAI Rank'] = 0
         df_all['MSAI Rank'] = pd.to_numeric(df_all['MSAI Rank'], errors='coerce').fillna(0)
 
-        # --- DUAL AI FEATURE LISTS (MAIN vs SHADOW) ---
         feats = ['Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', '7:30AM Price', 'No. of Rnrs', 'Trainer PRB', 'Jockey PRB', 'Primary Rank', 'Form Rank', 'MSAI Rank']
         shadow_feats = ['Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'No. of Rnrs', 'Trainer PRB', 'Jockey PRB', 'Primary Rank', 'Form Rank', 'MSAI Rank']
         
@@ -75,7 +74,6 @@ def load_all_data():
             if col in df_all.columns:
                 df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0).astype(np.float64)
 
-        # --- NOW split into Historic and Live Data ---
         split_date = pd.Timestamp(2026, 3, 8)
         df_historic = df_all[df_all['Date_DT'] <= split_date].copy()
         df_live = None
@@ -88,7 +86,6 @@ def load_all_data():
             live_res_pool = df_all[df_all['Date_DT'] > split_date]
             df_live = pd.merge(ods_keys, live_res_pool, on=['Date_Key', 'Time', 'Course', 'Horse'], how='inner')
                 
-        # --- TRAIN BOTH MODELS SIMULTANEOUSLY ---
         clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
         shadow_clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
         
@@ -350,7 +347,8 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                     .left-align { text-align: left !important; padding-left: 8px !important; }
                     .divider { border-left: 3px solid #1a3a5f !important; }
                 </style>
-                <table class="builder-table">
+                <div style="overflow-x: auto; width: 100%;">
+                <table class="builder-table" style="min-width: 800px;">
                     <thead><tr style="background-color: #1a3a5f; color: white;">
                 """
                 
@@ -388,7 +386,7 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                         <td>{r['Place SR (%)']:.1f}%</td>
                         <td style="color:{t_color}; font-weight:bold;">£{r['Total P/L']:.2f}</td>
                     </tr>"""
-                html_table += "</tbody></table>"
+                html_table += "</tbody></table></div>"
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.info(f"No combinations found with at least {min_bets} bets.")
@@ -439,12 +437,12 @@ else:
                 
                 h_col1, h_col2 = st.columns([19, 1], gap="small")
                 with h_col1:
-                    header = '<table class="k2-table"><thead><tr>'
+                    header = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><thead><tr>'
                     header += '<th style="width:'+w[0]+';" class="left-head">Date</th><th style="width:'+w[1]+';" class="left-head">Time</th>'
                     header += '<th style="width:'+w[2]+';" class="left-head">Course</th><th style="width:'+w[3]+';" class="left-head">Horse</th>'
                     header += '<th style="width:'+w[4]+';" class="left-head">Price</th><th style="width:'+w[5]+';" class="left-head">AI Prob</th>'
                     header += '<th style="width:'+w[6]+';" class="left-head">Rank</th><th style="width:'+w[7]+';" class="left-head">Tops</th>'
-                    header += '</tr></thead></table>'
+                    header += '</tr></thead></table></div>'
                     st.markdown(header, unsafe_allow_html=True)
 
                 for (d, t, c), group in df_p.groupby(['Date', 'Time', 'Course'], sort=False):
@@ -456,7 +454,7 @@ else:
                     
                     t_col, b_col = st.columns([19, 1], gap="small")
                     with t_col:
-                        html = '<table class="k2-table"><tbody>'
+                        html = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><tbody>'
                         for _, r in rows.iterrows():
                             row_cls = "mauve-row" if r['isM'] else ""
                             rv = int(r['Rank'])
@@ -471,7 +469,7 @@ else:
                             html += '<td style="width:'+w[6]+';" class="'+r_cls+' center-text">'+str(rv)+'</td>'
                             html += '<td style="width:'+w[7]+';" class="center-text">'+str(int(r["No. of Top"]))+'</td>'
                             html += '</tr>'
-                        st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
+                        st.markdown(html + '</tbody></table></div>', unsafe_allow_html=True)
                     with b_col:
                         if st.button("-" if is_expanded else "+", key="btn_"+race_id):
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
@@ -620,14 +618,12 @@ else:
                                 
                                 if s_data.get('rank_1_only', False): s_mask &= (t_df['Rank'] == 1)
                                 
-                                # --- UPDATED: New Month Filter Logic ---
                                 months = s_data.get('months', ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
                                 if len(months) < 12:
                                     month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
                                     sel_m_nums = [month_map[m] for m in months]
                                     s_mask &= t_df['Date_DT'].dt.month.isin(sel_m_nums)
 
-                                # --- UPDATED: New Value Filter Logic ---
                                 vf = s_data.get('value_filter', "Off")
                                 if vf in ["Value vs 7:30AM Price", "Value vs BSP", "AI Value vs 7:30AM", "AI Value vs BSP"]: 
                                     s_mask &= (t_df['7:30AM Price'] > t_df['Value Price'])
@@ -694,7 +690,7 @@ else:
                             st.download_button(dl_label, csv_data, f"K2_{pool_choice}_Systems_{timestamp}.csv", "text/csv", key="dl_smart")
                             st.write("")
 
-                            html_table = """<style>.contiguous-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .contiguous-table th, .contiguous-table td { border: 1px solid #ccc; padding: 4px; text-align: left; } .contiguous-table tr:hover { background-color: #0000FF !important; color: white !important; }</style><table class="contiguous-table"><thead><tr>"""
+                            html_table = """<style>.contiguous-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .contiguous-table th, .contiguous-table td { border: 1px solid #ccc; padding: 4px; text-align: left; } .contiguous-table tr:hover { background-color: #0000FF !important; color: white !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="contiguous-table" style="min-width: 900px;"><thead><tr>"""
                             for col in existing_cols: html_table += f"<th>{col}</th>"
                             html_table += "</tr></thead><tbody>"
 
@@ -712,7 +708,7 @@ else:
                                     html_table += f"<td>{val}</td>"
                                 html_table += "</tr>"
 
-                            html_table += "</tbody></table>"
+                            html_table += "</tbody></table></div>"
                             st.markdown(html_table, unsafe_allow_html=True)
                         else: st.info(f"No systems selections found today for the '{pool_choice}' pool.")
                 else: st.info("No data available for today's races.")
@@ -799,7 +795,7 @@ else:
                             combined['SortKey'] = np.where(combined['Period'] == 'All Time', 1, 2)
                             combined = combined.sort_values(by=[sys_col_found, 'SortKey']).drop('SortKey', axis=1)
 
-                            html_table = """<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><table class="builder-table"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">System Name</th><th class="left-align">Period</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>"""
+                            html_table = """<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 1000px;"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">System Name</th><th class="left-align">Period</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>"""
                             
                             unique_sys = combined[sys_col_found].unique()
                             palette = ["#e8f4f8", "#f8e8e8", "#e8f8e8", "#f8f4e8", "#f4e8f8", "#e8f8f8"]
@@ -818,7 +814,7 @@ else:
                                 t_color = "#2e7d32" if row['Total P/L'] > 0 else "#d32f2f" if row['Total P/L'] < 0 else "black"
                                 
                                 html_table += f"""<tr style="background-color: {bg};"><td class="left-align"><b>{row[sys_col_found]}</b></td><td class="left-align">{b_s}{row['Period']}{b_e}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td style="color:{w_color}; font-weight:bold;">£{row['Win_Profit']:.2f}</td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td style="color:{p_color}; font-weight:bold;">£{row['Place_Profit']:.2f}</td><td>{row['Place SR (%)']:.2f}%</td><td style="color:{t_color}; font-weight:bold;">£{row['Total P/L']:.2f}</td></tr>"""
-                            html_table += "</tbody></table>"
+                            html_table += "</tbody></table></div>"
                             st.markdown(html_table, unsafe_allow_html=True)
                         else: st.warning("Found the file, but none of the picks had a matched race result in the database.")
                     else: st.error("The file is missing one of the required columns: Date, Time, Course, or Horse.")
@@ -1108,16 +1104,16 @@ else:
                             csv_data_out = t_filtered[dl_cols].to_csv(index=False).encode('utf-8')
                             timestamp_out = datetime.now().strftime('%d%m%y_%H%M%S')
                             
-                            qual_html_out = '<table class="builder-table"><thead><tr style="background-color: #2e7d32; color: white;"><th class="center-text">Date</th><th class="center-text">Time</th><th class="left-align">Course</th><th class="left-align">Horse</th><th class="center-text">7:30AM Price</th><th class="center-text">Pure Rank</th></tr></thead><tbody>'
+                            qual_html_out = '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 700px;"><thead><tr style="background-color: #2e7d32; color: white;"><th class="center-text">Date</th><th class="center-text">Time</th><th class="left-align">Course</th><th class="left-align">Horse</th><th class="center-text">7:30AM Price</th><th class="center-text">Pure Rank</th></tr></thead><tbody>'
                             for _, q_row in t_filtered.iterrows(): qual_html_out += f"<tr><td class='center-text'>{q_row['Date']}</td><td class='center-text'>{q_row['Time']}</td><td class='left-align'>{q_row['Course']}</td><td class='left-align'><b>{q_row['Horse']}</b></td><td class='center-text'>{q_row['7:30AM Price']:.2f}</td><td class='center-text'><b>{int(q_row.get('Pure Rank', 0))}</b></td></tr>"
-                            qual_html_out += "</tbody></table>"
+                            qual_html_out += "</tbody></table></div>"
 
                     html_table_out = '<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 4px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style>'
-                    html_table_out += '<table class="builder-table"><thead><tr style="background-color: #f0f2f6; color: black;"><th class="left-align">Race Type</th><th class="left-align">H/Cap</th><th class="left-align">Price Bracket</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>'
+                    html_table_out += '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 900px;"><thead><tr style="background-color: #f0f2f6; color: black;"><th class="left-align">Race Type</th><th class="left-align">H/Cap</th><th class="left-align">Price Bracket</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>'
                     for _, row in breakdown.iterrows(): 
                         t_col = "#2e7d32" if row['Total P/L'] >= 0 else "#d32f2f"
                         html_table_out += f"<tr><td class='left-align'>{row['Race Type']}</td><td class='left-align'>{row['H/Cap']}</td><td class='left-align'>{row['Price Bracket']}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
-                    html_table_out += "</tbody></table>"
+                    html_table_out += "</tbody></table></div>"
 
                     st.session_state['tab4_results'] = {'kpis': kpis, 'breakdown_html': html_table_out, 'qual_html': qual_html_out, 'csv': csv_data_out, 'timestamp': timestamp_out, 'val_warn': val_bsp_warning}
                 else: st.session_state['tab4_results'] = "empty"
@@ -1257,7 +1253,11 @@ else:
                     try: return f"{float(v):.2f}"
                     except: return "-"
 
-                html = '<table class="k2-table" style="width:100%;"><thead><tr style="background-color: #1a3a5f; color: white;">'
+                show_draw = r_type_str in ['A/W', 'Turf']
+                form_colspan = 9 if show_draw else 8
+                
+                html = '<div style="overflow-x: auto; width: 100%;">'
+                html += '<table class="k2-table" style="width:100%; min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
                 if show_msai: headers.append("MSAI Rank")
                 
@@ -1268,14 +1268,9 @@ else:
                 
                 for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
                 
-# Determine if Draw should be shown and calculate colspan
-                show_draw = r_type_str in ['A/W', 'Turf']
-                form_colspan = 9 if show_draw else 8
-                
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                # Build headers dynamically
                 form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
                 if show_draw: form_headers.append("Draw")
                 form_headers.extend(["Speed", "Total"])
@@ -1314,7 +1309,6 @@ else:
                     sp = fmt_2dp(gv(r, "Speed"))
                     ts = fmt_2dp(gv(r, "Total"))
                     
-                    # Inject row cells dynamically
                     html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
                     if show_draw:
                         html += f'<td class="center-text">{dr}</td>'
@@ -1323,7 +1317,7 @@ else:
                     html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
                     html += '</tr>'
                     
-                html += "</tbody></table>"
+                html += "</tbody></table></div>"
                 st.markdown(html, unsafe_allow_html=True)
                 
             else:
