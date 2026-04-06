@@ -1268,10 +1268,19 @@ else:
                 
                 for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
                 
-                html += '<th colspan="9" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
+# Determine if Draw should be shown and calculate colspan
+                show_draw = r_type_str in ['A/W', 'Turf']
+                form_colspan = 9 if show_draw else 8
+                
+                html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                for h in ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey", "Draw", "Speed", "Total"]: html += f'<th class="center-text">{h}</th>'
+                # Build headers dynamically
+                form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
+                if show_draw: form_headers.append("Draw")
+                form_headers.extend(["Speed", "Total"])
+                
+                for h in form_headers: html += f'<th class="center-text">{h}</th>'
                 html += '</tr></thead><tbody>'
                 
                 for _, r in race_df.iterrows():
@@ -1305,7 +1314,11 @@ else:
                     sp = fmt_2dp(gv(r, "Speed"))
                     ts = fmt_2dp(gv(r, "Total"))
                     
-                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td><td class="center-text">{dr}</td><td class="center-text">{sp}</td>'
+                    # Inject row cells dynamically
+                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
+                    if show_draw:
+                        html += f'<td class="center-text">{dr}</td>'
+                    html += f'<td class="center-text">{sp}</td>'
                     html += f'<td class="center-text" style="font-weight:bold;">{ts}</td>'
                     html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
                     html += '</tr>'
