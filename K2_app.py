@@ -60,6 +60,7 @@ def load_all_data():
         df_all['Date_Key'] = df_all['Date'].apply(clean_date)
         df_all['Date_DT'] = pd.to_datetime(df_all['Date_Key'], format='%y%m%d', errors='coerce')
         
+        # --- MOVED UP: Pre-calculate all ranks BEFORE splitting the data ---
         df_all['No. of Top'] = pd.to_numeric(df_all.get('No. of Top', 0), errors='coerce').fillna(0)
         df_all['Total'] = pd.to_numeric(df_all.get('Total', 0), errors='coerce').fillna(0)
         df_all['Primary Rank'] = df_all.groupby(['Date_Key', 'Time', 'Course'])['No. of Top'].transform(lambda x: x.rank(ascending=False, method='min'))
@@ -67,6 +68,7 @@ def load_all_data():
         if 'MSAI Rank' not in df_all.columns: df_all['MSAI Rank'] = 0
         df_all['MSAI Rank'] = pd.to_numeric(df_all['MSAI Rank'], errors='coerce').fillna(0)
 
+        # --- DUAL AI FEATURE LISTS (MAIN vs SHADOW) ---
         feats = ['Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', '7:30AM Price', 'No. of Rnrs', 'Trainer PRB', 'Jockey PRB', 'Primary Rank', 'Form Rank', 'MSAI Rank']
         shadow_feats = ['Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'No. of Rnrs', 'Trainer PRB', 'Jockey PRB', 'Primary Rank', 'Form Rank', 'MSAI Rank']
         
@@ -74,6 +76,7 @@ def load_all_data():
             if col in df_all.columns:
                 df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0).astype(np.float64)
 
+        # --- NOW split into Historic and Live Data ---
         split_date = pd.Timestamp(2026, 3, 8)
         df_historic = df_all[df_all['Date_DT'] <= split_date].copy()
         df_live = None
@@ -86,6 +89,7 @@ def load_all_data():
             live_res_pool = df_all[df_all['Date_DT'] > split_date]
             df_live = pd.merge(ods_keys, live_res_pool, on=['Date_Key', 'Time', 'Course', 'Horse'], how='inner')
                 
+        # --- TRAIN BOTH MODELS SIMULTANEOUSLY ---
         clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
         shadow_clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
         
@@ -126,15 +130,7 @@ st.markdown('<style>'
     'header { visibility: hidden; }'
     '.k2-table { border-collapse: collapse !important; width: 100% !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
     '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
-    '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
-    '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
-    '.k2-table td.r3 { background-color: #1976d2 !important; color: white !important; font-weight: bold !important; }'
     '.mauve-row td { background-color: #f3e5f5 !important; color: black !important; }'
-    '.k2-table tr:hover td { background-color: #aec6cf !important; color: black !important; }'
-    '.k2-table thead th { background-color: #000 !important; color: white !important; text-transform: uppercase; letter-spacing: 0.5px; }'
-    '.left-head { text-align: left !important; padding-left: 10px !important; }'
-    '.left-text { text-align: left !important; padding-left: 10px !important; }'
-    '.center-text { text-align: center !important; }'
     '.pos-val { color: #2e7d32 !important; font-weight: bold !important; }'
     '.neg-val { color: #d32f2f !important; font-weight: bold !important; }'
 '</style>', unsafe_allow_html=True)
@@ -1217,8 +1213,10 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].sort_values(by=['Pure Rank', 'Rank'], ascending=[True, True])
+                # Filter data for the current race
+                race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)]
                 
+                # ... same MSAI and Draw visibility checks ...
                 show_msai = False
                 if r_type_str in ['A/W', 'Turf']:
                     irish_col = 'Irish?' if 'Irish?' in race_df.columns else 'Irish' if 'Irish' in race_df.columns else None
@@ -1227,98 +1225,107 @@ else:
                     if not is_irish and 'MSAI Rank' in race_df.columns:
                         if pd.to_numeric(race_df['MSAI Rank'], errors='coerce').fillna(0).max() > 0:
                             show_msai = True
-                
-                def gv(r, c, num=False, default="-"):
-                    v = r.get(c, default)
-                    if pd.isna(v) or v == "": return default
-                    if num:
-                        try: return float(v)
-                        except: return default
-                    return v
-                
-                def rc(v):
-                    try:
-                        v = int(float(v))
-                        if v == 1: return "r1"
-                        if v == 2: return "r2"
-                        if v == 3: return "r3"
-                    except: pass
-                    return ""
-
-                def fmt_int(v):
-                    try: return str(int(float(v)))
-                    except: return "-"
-
-                def fmt_2dp(v):
-                    try: return f"{float(v):.2f}"
-                    except: return "-"
-
                 show_draw = r_type_str in ['A/W', 'Turf']
-                form_colspan = 9 if show_draw else 8
+
+                # Start building the interactive DataFrame for display with native sorting
+                display_df = race_df.copy()
+
+                # Handle numeric columns first, converting to proper types and fillna(0)
+                # Integer number type formatting: SPEED RANK, COMB. RANK, RACE RANK, Race Rating, COMP. RANK, PRB RANK, MSAI Rank, No. of Top, Primary Rank, Form Rank, Pure Rank.
+                integer_source_cols = ["SPEED RANK", "COMB. RANK", "RACE RANK", "Race Rating", "COMP. RANK", "PRB RANK", "No. of Top", "Primary Rank", "Form Rank", "Pure Rank"]
+                if show_msai: integer_source_cols.append("MSAI Rank")
+                for col in integer_source_cols:
+                    if col in display_df.columns:
+                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce').fillna(0).astype(int)
+
+                # Float formatting (scores 2dp, prices): VALUE, 7:30AM PRICE, Ability, Going, Distance, Course/Sim, Trainer, Jockey, [Draw], Speed, Total.
+                float_source_cols = ["Value Price", "7:30AM Price", "Ability", "Going", "Distance", "Course/Sim", "TrainrF", "JockyF", "Speed", "Total"]
+                if show_draw: float_source_cols.append("Draw")
+                for col in float_source_cols:
+                    if col in display_df.columns:
+                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce').fillna(0).astype(float)
+
+                # Let's rebuild the ordered list of columns to select from source DataFrame for display. This must be a clean list from ta_df/source data.
+                # The sorting columns are determined after native sorting is active. Simple and powerful change directly to interactive dataframe.
+                cols_to_select_logical = ['Horse', 'Value Price', '7:30AM Price', 'SPEED RANK', 'COMB. RANK', 'RACE RANK', 'Race Rating', 'COMP. RANK', 'PRB RANK']
+                if show_msai: cols_to_select_logical.append('MSAI Rank')
+                cols_to_select_logical.extend(['No. of Top', 'Primary Rank', 'Form Rank'])
+                # Form section
+                cols_to_select_logical.extend(["Ability", "Going", "Distance", "Course/Sim", "TrainrF", "JockyF"])
+                if show_draw: cols_to_select_logical.append("Draw")
+                cols_to_select_logical.extend(["Speed", "Total"])
+                # PURE RANK
+                cols_to_select_logical.append('Pure Rank')
                 
-                html = '<div style="overflow-x: auto; width: 100%;">'
-                html += '<table class="k2-table" style="width:100%; min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
-                headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
-                if show_msai: headers.append("MSAI Rank")
+                # Check column existence as some ranks might not be there depending on data. prep data should have them. ta_df columns has all of them.
+                # Column renaming map to use UPPER CASE and logical names for display
+                display_renaming_tab5_logical = {
+                    'Horse': 'Horse',
+                    'Value Price': 'VALUE',
+                    '7:30AM Price': '7:30AM PRICE',
+                    'SPEED RANK': 'SPEED RANK',
+                    'COMB. RANK': 'COMB. RANK',
+                    'RACE RANK': 'RACE RANK',
+                    'Race Rating': 'Race Rating',
+                    'COMP. RANK': 'COMP. RANK',
+                    'PRB RANK': 'PRB RANK',
+                    'No. of Top': 'NO. OF TOP',
+                    'Primary Rank': 'PRIMARY RANK',
+                    'Form Rank': 'FORM RANK',
+                    'Ability': 'Ability',
+                    'Going': 'Going',
+                    'Distance': 'Distance',
+                    'Course/Sim': 'Course/Sim',
+                    'TrainrF': 'Trainer',
+                    'JockyF': 'Jockey',
+                    'Speed': 'Speed',
+                    'Total': 'Total',
+                    'Pure Rank': 'PURE RANK'
+                }
+                if show_msai: display_renaming_tab5_logical['MSAI Rank'] = 'MSAI RANK'
+                if show_draw: display_renaming_tab5_logical['Draw'] = 'Draw' # form Draw, a float score
+
+                # Use a combined list to find available logical columns from ta_df and rename them logically for display
+                available_cols_logical = [c for c in cols_to_select_logical if c in ta_df.columns or c in display_df.columns]
+                display_df = display_df[available_cols_logical].rename(columns=display_renaming_tab5_logical)
+
+                # Now that columns are selected and renamed for display, rebuild logical lists for styling and formatting using logical/renamed headers.
+                # All ranks sortable and styled with rank colors. No. of Top integer, scores floats 2dp. No color coding on Race Rating or No. of Top.
+                # Logical Int for int formatting.
+                logical_int_cols = ["SPEED RANK", "COMB. RANK", "RACE RANK", "Race Rating", "COMP. RANK", "PRB RANK", "NO. OF TOP", "PRIMARY RANK", "FORM RANK", "PURE RANK"]
+                if show_msai: logical_int_cols.append("MSAI RANK")
                 
-                headers.extend(["No. of Top", "Primary Rank", "Form Rank"])
+                # Logical Float for float formatting (2dp scores, prices).
+                logical_float_cols = ["VALUE", "7:30AM PRICE", "Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey", "Speed", "Total"]
+                if show_draw: logical_float_cols.append("Draw") # form Draw, float score
                 
-                if 'No. of Top' in race_df.columns:
-                    race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
+                # Rank styling logic (r1, r2, r3, r4) color coding. Applies to all rank columns. Not No. of Top or Race Rating.
+                logical_rank_style_cols = ["SPEED RANK", "COMB. RANK", "RACE RANK", "COMP. RANK", "PRB RANK", "PRIMARY RANK", "FORM RANK", "PURE RANK"]
+                if show_msai: logical_rank_style_cols.append("MSAI RANK")
+
+                def rank_color(val):
+                    color = ''
+                    if isinstance(val, int) and val > 0:
+                        if val == 1: color = '#2e7d32; color: white; font-weight: bold;' # green r1
+                        elif val == 2: color = '#fbc02d; color: black; font-weight: bold;' # yellow r2
+                        elif val == 3: color = '#1976d2; color: white; font-weight: bold;' # blue r3
+                    return f'background-color: {color}' if color else ''
+
+                styled_df = display_df.style
+                # Format specific float columns and integer columns for display. Integer columns for ranks should be integer number type. Floats for scores 2dp. No. of Top and Race Rating integer.
+                # Number formatting map logically for columns in display_df. Renamed integer columns: logical_int_cols. Renamed float columns: logical_float_cols.
+                format_dict = {}
+                for col in display_df.columns:
+                    if col in logical_float_cols: format_dict[col] = "{:.2f}"
+                    elif col in logical_int_cols: format_dict[col] = "{:.0f}"
                 
-                for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
-                
-                html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
-                html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
-                
-                form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
-                if show_draw: form_headers.append("Draw")
-                form_headers.extend(["Speed", "Total"])
-                
-                for h in form_headers: html += f'<th class="center-text">{h}</th>'
-                html += '</tr></thead><tbody>'
-                
-                for _, r in race_df.iterrows():
-                    vp, pr = gv(r,"Value Price",True), gv(r,"7:30AM Price",True)
-                    sr, cr, rr, cpr, prb = gv(r,"Speed Rank"), gv(r,"Comb. Rank"), gv(r,"Race Rank"), gv(r,"Comp. Rank"), gv(r,"PRB Rank")
-                    
-                    pure_r = fmt_int(gv(r, "Pure Rank"))
-                    no_top = fmt_int(gv(r, "No. of Top"))
-                    prim_r = fmt_int(gv(r, "Primary Rank"))
-                    form_r = fmt_int(gv(r, "Form Rank"))
-                    
-                    html += '<tr>'
-                    html += f'<td class="left-text"><b>{gv(r, "Horse")}</b></td>'
-                    html += f'<td class="center-text">{f"{vp:.2f}" if isinstance(vp, float) else vp}</td><td class="center-text">{f"{pr:.2f}" if isinstance(pr, float) else pr}</td>'
-                    html += f'<td class="center-text {rc(sr)}">{sr}</td><td class="center-text {rc(cr)}">{cr}</td><td class="center-text {rc(rr)}">{rr}</td><td class="center-text">{gv(r, "Race Rating", default=0)}</td><td class="center-text {rc(cpr)}">{cpr}</td><td class="center-text {rc(prb)}">{prb}</td>'
-                    
-                    if show_msai:
-                        msai = fmt_int(gv(r, "MSAI Rank"))
-                        html += f'<td class="center-text {rc(msai)}">{msai}</td>'
-                        
-                    html += f'<td class="center-text">{no_top}</td>'
-                    html += f'<td class="center-text {rc(prim_r)}">{prim_r}</td><td class="center-text {rc(form_r)}">{form_r}</td>'
-                    
-                    ab = fmt_2dp(gv(r, "Ability"))
-                    go = fmt_2dp(gv(r, "Going"))
-                    di = fmt_2dp(gv(r, "Distance"))
-                    cs = fmt_2dp(gv(r, "Course/Sim"))
-                    tr = fmt_2dp(gv(r, "TrainrF"))
-                    jo = fmt_2dp(gv(r, "JockyF"))
-                    dr = fmt_2dp(gv(r, "Draw"))
-                    sp = fmt_2dp(gv(r, "Speed"))
-                    ts = fmt_2dp(gv(r, "Total"))
-                    
-                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
-                    if show_draw:
-                        html += f'<td class="center-text">{dr}</td>'
-                    html += f'<td class="center-text">{sp}</td>'
-                    html += f'<td class="center-text" style="font-weight:bold;">{ts}</td>'
-                    html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
-                    html += '</tr>'
-                    
-                html += "</tbody></table></div>"
-                st.markdown(html, unsafe_allow_html=True)
+                styled_df = styled_df.format(format_dict)
+                # Applying color coding to rank columns based on logical list. Not renamed logic.
+                styled_df = styled_df.applymap(rank_color, subset=logical_rank_style_cols)
+
+                # Native sorting by displaying as interactive dataframe.
+                # Simple and powerful change. Replacing whole HTML part.
+                st.dataframe(styled_df, hide_index=True, use_container_width=True)
                 
             else:
                 st.markdown("### Race Selection")
