@@ -616,7 +616,15 @@ else:
                                     (t_df['Prob Gap'] >= s_data.get('min_prob_gap', -100.0))
                                 )
                                 
-                                if s_data.get('rank_1_only', False): s_mask &= (t_df['Rank'] == 1)
+                                # --- UPDATED: Backward compatibility for old JSONs ---
+                                ai_filt = s_data.get('ai_rank_filter', "Any")
+                                if ai_filt == "Any" and s_data.get('rank_1_only', False):
+                                    ai_filt = "AI Rank 1 Only"
+                                    
+                                if ai_filt == "AI Rank 1 Only": s_mask &= (t_df['Rank'] == 1)
+                                elif ai_filt == "Top 2 Only": s_mask &= (t_df['Rank'] <= 2)
+                                elif ai_filt == "NOT AI Rank 1": s_mask &= (t_df['Rank'] > 1)
+                                elif ai_filt == "NOT Top 3": s_mask &= (t_df['Rank'] > 3)
                                 
                                 months = s_data.get('months', ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
                                 if len(months) < 12:
@@ -901,7 +909,7 @@ else:
 
                 c5, c6, c7, c8 = st.columns(4)
                 with c5:
-                    rank_1_only = st.checkbox("Must be AI Rank 1", value=False)
+                    ai_rank_filter = st.selectbox("AI Rank", ["Any", "AI Rank 1 Only", "Top 2 Only", "NOT AI Rank 1", "NOT Top 3"])
                     sex_opts = ["c", "f", "g", "m", "h", "r", "x"]
                     selected_sex = st.multiselect("Horse Sex", sex_opts, default=sex_opts)
                 with c6: 
@@ -945,7 +953,7 @@ else:
                     if st.button("Generate JSON Code", use_container_width=True):
                         if new_sys_name:
                             sys_data = {
-                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "rank_1_only": rank_1_only, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
+                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "ai_rank_filter": ai_rank_filter, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
                                 "ranks": {"Comb. Rank": comb_f, "Comp. Rank": comp_f, "Speed Rank": speed_f, "Race Rank": race_f, "Primary Rank": primary_f, "MSAI Rank": msai_f, "PRB Rank": prb_f, "Trainer PRB Rank": tprb_f, "Jockey PRB Rank": jprb_f, "Form Rank": form_f, "Pure Rank": pure_f}
                             }
                             st.code(f'"{new_sys_name}": {json.dumps(sys_data, indent=4)}', language="json")
@@ -988,7 +996,10 @@ else:
                     sel_m_nums = [month_map[m] for m in selected_months]
                     mask = mask & b_df['Date_DT'].dt.month.isin(sel_m_nums)
                 
-                if rank_1_only: mask = mask & (b_df['Rank'] == 1)
+                if ai_rank_filter == "AI Rank 1 Only": mask = mask & (b_df['Rank'] == 1)
+                elif ai_rank_filter == "Top 2 Only": mask = mask & (b_df['Rank'] <= 2)
+                elif ai_rank_filter == "NOT AI Rank 1": mask = mask & (b_df['Rank'] > 1)
+                elif ai_rank_filter == "NOT Top 3": mask = mask & (b_df['Rank'] > 3)
                 
                 if value_filter in ["Value vs 7:30AM Price", "AI Value vs 7:30AM"]: mask = mask & (b_df['7:30AM Price'] > b_df['Value Price'])
                 elif value_filter in ["Value vs BSP", "AI Value vs BSP"]: mask = mask & (b_df['BSP'] > b_df['Value Price'])
@@ -1074,7 +1085,10 @@ else:
                         if len(selected_months) < 12:
                             t_mask = t_mask & t_df['Date_DT'].dt.month.isin(sel_m_nums)
 
-                        if rank_1_only: t_mask = t_mask & (t_df['Rank'] == 1)
+                        if ai_rank_filter == "AI Rank 1 Only": t_mask = t_mask & (t_df['Rank'] == 1)
+                        elif ai_rank_filter == "Top 2 Only": t_mask = t_mask & (t_df['Rank'] <= 2)
+                        elif ai_rank_filter == "NOT AI Rank 1": t_mask = t_mask & (t_df['Rank'] > 1)
+                        elif ai_rank_filter == "NOT Top 3": t_mask = t_mask & (t_df['Rank'] > 3)
                         
                         if value_filter in ["Value vs 7:30AM Price", "Value vs BSP", "AI Value vs 7:30AM", "AI Value vs BSP"]: 
                             t_mask = t_mask & (t_df['7:30AM Price'] > t_df['Value Price'])
