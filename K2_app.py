@@ -124,7 +124,7 @@ def load_ods_master():
 st.markdown('<style>'
     '.block-container { padding-top: 1.5rem !important; }'
     'header { visibility: hidden; }'
-    '.k2-table { border-collapse: collapse !important; width: 100% !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
+    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
     '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
     '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
     '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
@@ -629,6 +629,10 @@ else:
                                     s_mask &= (t_df['7:30AM Price'] > t_df['Value Price'])
                                 elif vf in ["My Value vs 7:30AM", "My Value vs BSP"]: 
                                     s_mask &= (t_df['7:30AM Price'] > t_df['User Value'])
+                                elif vf in ["NOT AI Value vs 7:30AM", "NOT AI Value vs BSP"]:
+                                    s_mask &= (t_df['7:30AM Price'] < t_df['Value Price'])
+                                elif vf in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP"]:
+                                    s_mask &= (t_df['7:30AM Price'] < t_df['User Value'])
 
                                 rnrs = s_data.get('rnrs', [])
                                 r_m = pd.Series(False, index=t_df.index)
@@ -828,7 +832,6 @@ else:
 
 # --- Tab 4: Mini SYSTEM BUILDER ---
     with tab4:
-        # --- NEW: THE DYNAMIC RESET HACK ---
         if "form_reset_counter" not in st.session_state:
             st.session_state.form_reset_counter = 0
 
@@ -838,17 +841,14 @@ else:
         with c_reset:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🔄 Reset Filters", use_container_width=True):
-                # Clear the results table from the screen
                 if 'tab4_results' in st.session_state:
                     del st.session_state['tab4_results']
-                # Change the form ID to force a complete visual wipe
                 st.session_state.form_reset_counter += 1
                 st.rerun()
 
         if df_all is not None and not df_all.empty:
             b_df = prep_system_builder_data(df_all, model, feats, shadow_model, shadow_feats)
 
-            # --- UPDATED: The form now uses the dynamic counter ID ---
             with st.form(f"builder_form_{st.session_state.form_reset_counter}"):
                 st.markdown("### Core Filters")
                 
@@ -904,7 +904,12 @@ else:
                     rank_1_only = st.checkbox("Must be AI Rank 1", value=False)
                     sex_opts = ["c", "f", "g", "m", "h", "r", "x"]
                     selected_sex = st.multiselect("Horse Sex", sex_opts, default=sex_opts)
-                with c6: value_filter = st.selectbox("Value Filter", ["Off", "AI Value vs 7:30AM", "AI Value vs BSP", "My Value vs 7:30AM", "My Value vs BSP"])
+                with c6: 
+                    value_filter = st.selectbox("Value Filter", [
+                        "Off", 
+                        "AI Value vs 7:30AM", "AI Value vs BSP", "My Value vs 7:30AM", "My Value vs BSP",
+                        "NOT AI Value vs 7:30AM", "NOT AI Value vs BSP", "NOT My Value vs 7:30AM", "NOT My Value vs BSP"
+                    ])
                 with c7: irish_f = st.selectbox("Irish Race", ["Any", "Y (Yes)", "No (Blank)"])
                 with c8: age_min, age_max = st.slider("Horse Age Range", 1, 20, (1, 20), 1)
                 
@@ -989,6 +994,10 @@ else:
                 elif value_filter in ["Value vs BSP", "AI Value vs BSP"]: mask = mask & (b_df['BSP'] > b_df['Value Price'])
                 elif value_filter == "My Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] > b_df['User Value'])
                 elif value_filter == "My Value vs BSP": mask = mask & (b_df['BSP'] > b_df['User Value'])
+                elif value_filter == "NOT AI Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['Value Price'])
+                elif value_filter == "NOT AI Value vs BSP": mask = mask & (b_df['BSP'] < b_df['Value Price'])
+                elif value_filter == "NOT My Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['User Value'])
+                elif value_filter == "NOT My Value vs BSP": mask = mask & (b_df['BSP'] < b_df['User Value'])
                 
                 rnr_mask = pd.Series(False, index=b_df.index)
                 if "2-7" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 2) & (b_df['No. of Rnrs'] <= 7)
@@ -1055,7 +1064,7 @@ else:
                     ]
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
-                    val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP"]
+                    val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP", "NOT AI Value vs BSP", "NOT My Value vs BSP"]
 
                     if df_today is not None and not df_today.empty:
                         t_df = prep_system_builder_data(df_today, model, feats, shadow_model, shadow_feats, is_live_today=True)
@@ -1071,6 +1080,10 @@ else:
                             t_mask = t_mask & (t_df['7:30AM Price'] > t_df['Value Price'])
                         elif value_filter in ["My Value vs 7:30AM", "My Value vs BSP"]: 
                             t_mask = t_mask & (t_df['7:30AM Price'] > t_df['User Value'])
+                        elif value_filter in ["NOT AI Value vs 7:30AM", "NOT AI Value vs BSP"]:
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['Value Price'])
+                        elif value_filter in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP"]:
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['User Value'])
                         
                         t_rnr_mask = pd.Series(False, index=t_df.index)
                         if "2-7" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] >= 2) & (t_df['No. of Rnrs'] <= 7)
@@ -1223,7 +1236,7 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- NEW: ZERO-DRIFT SORTING PANEL ---
+                # --- ZERO-DRIFT SORTING PANEL ---
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
