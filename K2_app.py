@@ -852,6 +852,7 @@ else:
                 if 'tab4_results' in st.session_state:
                     del st.session_state['tab4_results']
                 st.session_state['force_reset'] = True
+                st.session_state.form_reset_counter += 1
                 st.rerun()
 
         if df_all is not None and not df_all.empty:
@@ -918,8 +919,11 @@ else:
                 st.session_state['ui_jprb_f'] = ranks.get('Jockey PRB Rank', 'Any')
                 st.session_state['ui_form_f'] = ranks.get('Form Rank', 'Any')
                 st.session_state['ui_pure_f'] = ranks.get('Pure Rank', 'Any')
+                
+                # --- THIS IS THE FIX: FORCE THE FORM TO REBUILD ---
+                st.session_state.form_reset_counter += 1
 
-            with st.form("builder_form"):
+            with st.form(f"builder_form_{st.session_state.form_reset_counter}"):
                 st.markdown("### Core Filters")
                 
                 d_col, m_col = st.columns([1, 3])
@@ -1022,7 +1026,6 @@ else:
                                 with open("K2_user_systems.json", "r") as f: saved_dict = json.load(f)
                                 if saved_dict:
                                     for s_key, s_data in list(saved_dict.items()):
-                                        # --- RESTORED INDIVIDUAL EXPANDERS FOR NEATNESS ---
                                         with st.expander(f"🔍 {s_key}"): 
                                             cc1, cc2 = st.columns([4, 1])
                                             with cc1: st.json(s_data)
@@ -1040,7 +1043,6 @@ else:
                                 with open("K2_admin_systems.json", "r") as f: admin_dict = json.load(f)
                                 if admin_dict:
                                     for s_key, s_data in list(admin_dict.items()):
-                                        # --- RESTORED INDIVIDUAL EXPANDERS FOR NEATNESS ---
                                         with st.expander(f"🔍 {s_key}"):
                                             cc1, cc2 = st.columns([4, 1])
                                             with cc1: st.json(s_data)
