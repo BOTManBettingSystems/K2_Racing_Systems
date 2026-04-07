@@ -840,6 +840,9 @@ else:
 
 # --- Tab 4: Mini SYSTEM BUILDER ---
     with tab4:
+        if "form_reset_counter" not in st.session_state:
+            st.session_state.form_reset_counter = 0
+
         c_title, c_reset = st.columns([4, 1])
         with c_title:
             st.header("🛠️ Mini System Builder")
@@ -1019,13 +1022,14 @@ else:
                                 with open("K2_user_systems.json", "r") as f: saved_dict = json.load(f)
                                 if saved_dict:
                                     for s_key, s_data in list(saved_dict.items()):
-                                        cc1, cc2 = st.columns([4, 1])
-                                        with cc1: st.json(s_data)
-                                        with cc2: 
-                                            if st.button("Load 📥", key=f"load_pub_{s_key}", use_container_width=True):
-                                                load_sys_to_ui(s_data)
-                                                st.rerun()
-                                        st.markdown("---")
+                                        # --- RESTORED INDIVIDUAL EXPANDERS FOR NEATNESS ---
+                                        with st.expander(f"🔍 {s_key}"): 
+                                            cc1, cc2 = st.columns([4, 1])
+                                            with cc1: st.json(s_data)
+                                            with cc2: 
+                                                if st.button("Load 📥", key=f"load_pub_{s_key}", use_container_width=True):
+                                                    load_sys_to_ui(s_data)
+                                                    st.rerun()
                                 else: st.write("No systems currently active.")
                             except Exception as e: st.error(f"Error reading public file: {e}")
                 
@@ -1036,13 +1040,14 @@ else:
                                 with open("K2_admin_systems.json", "r") as f: admin_dict = json.load(f)
                                 if admin_dict:
                                     for s_key, s_data in list(admin_dict.items()):
-                                        cc1, cc2 = st.columns([4, 1])
-                                        with cc1: st.json(s_data)
-                                        with cc2: 
-                                            if st.button("Load 📥", key=f"load_sec_{s_key}", use_container_width=True):
-                                                load_sys_to_ui(s_data)
-                                                st.rerun()
-                                        st.markdown("---")
+                                        # --- RESTORED INDIVIDUAL EXPANDERS FOR NEATNESS ---
+                                        with st.expander(f"🔍 {s_key}"):
+                                            cc1, cc2 = st.columns([4, 1])
+                                            with cc1: st.json(s_data)
+                                            with cc2: 
+                                                if st.button("Load 📥", key=f"load_sec_{s_key}", use_container_width=True):
+                                                    load_sys_to_ui(s_data)
+                                                    st.rerun()
                                 else: st.write("No admin systems currently active.")
                             except Exception as e: st.error(f"Error reading admin file: {e}")
                 st.markdown("---")
@@ -1105,7 +1110,145 @@ else:
                 mask = apply_rank_filter(mask, b_df, 'Comb. Rank', comb_f)
                 mask = apply_rank_filter(mask, b_df, 'Comp. Rank', comp_f)
                 mask = apply_rank_filter(mask, b_df, 'Speed Rank', speed_f)
-                mask = apply_
+                mask = apply_rank_filter(mask, b_df, 'Race Rank', race_f)
+                mask = apply_rank_filter(mask, b_df, 'Primary Rank', primary_f)
+                mask = apply_rank_filter(mask, b_df, 'MSAI Rank', msai_f)
+                mask = apply_rank_filter(mask, b_df, 'PRB Rank', prb_f)
+                mask = apply_rank_filter(mask, b_df, 'Trainer PRB Rank', tprb_f)
+                mask = apply_rank_filter(mask, b_df, 'Jockey PRB Rank', jprb_f)
+                mask = apply_rank_filter(mask, b_df, 'Form Rank', form_f)
+                mask = apply_rank_filter(mask, b_df, 'Pure Rank', pure_f)
+                
+                df_filtered = b_df[mask].copy()
+
+                if not df_filtered.empty:
+                    breakdown = df_filtered.groupby(['Race Type', 'H/Cap', 'Price Bracket'], observed=False).agg(
+                        Bets=('Horse', 'count'), Wins=('Is_Win', 'sum'), Win_Profit=('Win P/L <2%', 'sum'), Places=('Is_Place', 'sum'), Place_Profit=('Place P/L <2%', 'sum')
+                    ).reset_index()
+                    
+                    breakdown = breakdown[breakdown['Bets'] > 0]
+                    breakdown['Strike Rate (%)'] = (breakdown['Wins'] / breakdown['Bets'] * 100).fillna(0)
+                    breakdown['Place SR (%)'] = (breakdown['Places'] / breakdown['Bets'] * 100).fillna(0)
+                    breakdown['Win ROI (%)'] = (breakdown['Win_Profit'] / breakdown['Bets'] * 100).fillna(0)
+                    breakdown['Total P/L'] = breakdown['Win_Profit'] + breakdown['Place_Profit']
+                    breakdown = breakdown.sort_values(by=['Race Type', 'H/Cap', 'Price Bracket'])
+
+                    total_bets_for_roi = breakdown['Bets'].sum()
+                    total_pl_for_roi = breakdown['Total P/L'].sum()
+                    total_roi_perc = (total_pl_for_roi / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
+
+                    kpis = [
+                        total_bets_for_roi, breakdown['Wins'].sum(), breakdown['Places'].sum(), 
+                        breakdown['Win_Profit'].sum(), breakdown['Place_Profit'].sum(),
+                        total_roi_perc
+                    ]
+
+                    qual_html_out, csv_data_out, timestamp_out = "", None, ""
+                    val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP", "NOT AI Value vs BSP", "NOT My Value vs BSP"]
+
+                    if df_today is not None and not df_today.empty:
+                        t_df = prep_system_builder_data(df_today, model, feats, shadow_model, shadow_feats, is_live_today=True)
+                        
+                        t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap))
+                        
+                        if len(selected_months) < 12:
+                            t_mask = t_mask & t_df['Date_DT'].dt.month.isin(sel_m_nums)
+
+                        if ai_rank_filter == "AI Rank 1 Only": t_mask = t_mask & (t_df['Rank'] == 1)
+                        elif ai_rank_filter == "Top 2 Only": t_mask = t_mask & (t_df['Rank'] <= 2)
+                        elif ai_rank_filter == "NOT AI Rank 1": t_mask = t_mask & (t_df['Rank'] > 1)
+                        elif ai_rank_filter == "NOT Top 3": t_mask = t_mask & (t_df['Rank'] > 3)
+                        
+                        if value_filter in ["Value vs 7:30AM Price", "Value vs BSP", "AI Value vs 7:30AM", "AI Value vs BSP"]: 
+                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['Value Price'])
+                        elif value_filter in ["My Value vs 7:30AM", "My Value vs BSP"]: 
+                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['User Value'])
+                        elif value_filter in ["NOT AI Value vs 7:30AM", "NOT AI Value vs BSP"]:
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['Value Price'])
+                        elif value_filter in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP"]:
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['User Value'])
+                        
+                        t_rnr_mask = pd.Series(False, index=t_df.index)
+                        if "2-7" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] >= 2) & (t_df['No. of Rnrs'] <= 7)
+                        if "8-12" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] >= 8) & (t_df['No. of Rnrs'] <= 12)
+                        if "13-16" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
+                        if ">16" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] > 16)
+                        t_mask = t_mask & t_rnr_mask
+
+                        if 'Class' in t_df.columns and selected_classes: t_mask = t_mask & t_df['Class'].isin(selected_classes)
+                        if 'Class Move' in t_df.columns and selected_cm: t_mask = t_mask & t_df['Class Move'].isin(selected_cm)
+                        if 'Age' in t_df.columns: t_mask = t_mask & (t_df['Age'] >= age_min) & (t_df['Age'] <= age_max)
+                        if 'Sex' in t_df.columns and selected_sex: t_mask = t_mask & t_df['Sex'].astype(str).str.strip().str.lower().isin([s.lower() for s in selected_sex])
+                        if 'Course' in t_df.columns and selected_courses: t_mask = t_mask & t_df['Course'].astype(str).str.strip().isin(selected_courses)
+
+                        if t_irish_col and irish_f != "Any":
+                            t_irish_series = t_df[t_irish_col].astype(str).str.strip().str.upper()
+                            if irish_f == "Y (Yes)": t_mask = t_mask & (t_irish_series == 'Y')
+                            elif irish_f == "No (Blank)": t_mask = t_mask & (t_irish_series != 'Y')
+
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Comb. Rank', comb_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Comp. Rank', comp_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Speed Rank', speed_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Race Rank', race_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Primary Rank', primary_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'MSAI Rank', msai_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'PRB Rank', prb_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Trainer PRB Rank', tprb_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Jockey PRB Rank', jprb_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Form Rank', form_f)
+                        t_mask = apply_rank_filter(t_mask, t_df, 'Pure Rank', pure_f)
+                        
+                        t_filtered = t_df[t_mask].copy()
+                        
+                        if not t_filtered.empty:
+                            t_filtered = t_filtered.sort_values(by=['Time', 'Course'])
+                            dl_cols = [c for c in ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'Pure Rank'] if c in t_filtered.columns]
+                            csv_data_out = t_filtered[dl_cols].to_csv(index=False).encode('utf-8')
+                            timestamp_out = datetime.now().strftime('%d%m%y_%H%M%S')
+                            
+                            qual_html_out = '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 700px;"><thead><tr style="background-color: #2e7d32; color: white;"><th class="center-text">Date</th><th class="center-text">Time</th><th class="left-align">Course</th><th class="left-align">Horse</th><th class="center-text">7:30AM Price</th><th class="center-text">Pure Rank</th></tr></thead><tbody>'
+                            for _, q_row in t_filtered.iterrows(): qual_html_out += f"<tr><td class='center-text'>{q_row['Date']}</td><td class='center-text'>{q_row['Time']}</td><td class='left-align'>{q_row['Course']}</td><td class='left-align'><b>{q_row['Horse']}</b></td><td class='center-text'>{q_row['7:30AM Price']:.2f}</td><td class='center-text'><b>{int(q_row.get('Pure Rank', 0))}</b></td></tr>"
+                            qual_html_out += "</tbody></table></div>"
+
+                    html_table_out = '<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 4px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style>'
+                    html_table_out += '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 900px;"><thead><tr style="background-color: #f0f2f6; color: black;"><th class="left-align">Race Type</th><th class="left-align">H/Cap</th><th class="left-align">Price Bracket</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>'
+                    for _, row in breakdown.iterrows(): 
+                        t_col = "#2e7d32" if row['Total P/L'] >= 0 else "#d32f2f"
+                        html_table_out += f"<tr><td class='left-align'>{row['Race Type']}</td><td class='left-align'>{row['H/Cap']}</td><td class='left-align'>{row['Price Bracket']}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
+                    html_table_out += "</tbody></table></div>"
+
+                    st.session_state['tab4_results'] = {'kpis': kpis, 'breakdown_html': html_table_out, 'qual_html': qual_html_out, 'csv': csv_data_out, 'timestamp': timestamp_out, 'val_warn': val_bsp_warning}
+                else: st.session_state['tab4_results'] = "empty"
+
+            if 'tab4_results' in st.session_state:
+                if st.session_state['tab4_results'] == "empty": st.warning("No bets found matching these exact criteria.")
+                else:
+                    res = st.session_state['tab4_results']
+                    kpis = res['kpis']
+                    st.markdown("### System Preview Performance")
+                    kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
+                    kpi1.metric("Total Bets", int(kpis[0]))
+                    kpi2.metric("Wins", int(kpis[1]))
+                    kpi3.metric("Places", int(kpis[2]))
+                    kpi4.metric("Win P/L", f"£{kpis[3]:.2f}")
+                    kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
+                    kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
+
+                    if res['qual_html'] != "":
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        with st.expander("🔍 View Today's Qualifiers for this System", expanded=False):
+                            if res['val_warn']: st.info("ℹ️ **Note:** You selected a 'vs BSP' value filter. Because today's BSP is not yet known, the live qualifiers are falling back to use the 7:30AM Price to check for Value.")
+                            st.download_button(label="📥 Download Qualifiers to CSV", data=res['csv'], file_name=f"K2_System_Preview_{res['timestamp']}.csv", mime="text/csv")
+                            st.write("") 
+                            st.markdown(res['qual_html'], unsafe_allow_html=True)
+                    elif df_today is not None and not df_today.empty:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        with st.expander("🔍 View Today's Qualifiers for this System", expanded=False):
+                            st.info("There are no horses running today that match these exact system criteria.")
+
+                    st.markdown("### Detailed Preview Breakdown")
+                    st.markdown(res['breakdown_html'], unsafe_allow_html=True)
+    
    # --- TAB 5: RACE ANALYSIS ---
     with tab5:
         st.header("🏇 Race Analysis")
