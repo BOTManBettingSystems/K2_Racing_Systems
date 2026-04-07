@@ -121,11 +121,10 @@ def load_ods_master():
     return None
 
 # --- 4. CSS ---
-# --- UPDATED: Added min-width: 850px to force whole-screen scrolling on mobile instead of line-by-line ---
 st.markdown('<style>'
     '.block-container { padding-top: 1.5rem !important; }'
     'header { visibility: hidden; }'
-    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
+    '.k2-table { border-collapse: collapse !important; width: 100% !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
     '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
     '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
     '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
@@ -438,12 +437,12 @@ else:
                 
                 h_col1, h_col2 = st.columns([19, 1], gap="small")
                 with h_col1:
-                    header = '<table class="k2-table"><thead><tr>'
+                    header = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><thead><tr>'
                     header += '<th style="width:'+w[0]+';" class="left-head">Date</th><th style="width:'+w[1]+';" class="left-head">Time</th>'
                     header += '<th style="width:'+w[2]+';" class="left-head">Course</th><th style="width:'+w[3]+';" class="left-head">Horse</th>'
                     header += '<th style="width:'+w[4]+';" class="left-head">Price</th><th style="width:'+w[5]+';" class="left-head">AI Prob</th>'
                     header += '<th style="width:'+w[6]+';" class="left-head">Rank</th><th style="width:'+w[7]+';" class="left-head">Tops</th>'
-                    header += '</tr></thead></table>'
+                    header += '</tr></thead></table></div>'
                     st.markdown(header, unsafe_allow_html=True)
 
                 for (d, t, c), group in df_p.groupby(['Date', 'Time', 'Course'], sort=False):
@@ -455,7 +454,7 @@ else:
                     
                     t_col, b_col = st.columns([19, 1], gap="small")
                     with t_col:
-                        html = '<table class="k2-table"><tbody>'
+                        html = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><tbody>'
                         for _, r in rows.iterrows():
                             row_cls = "mauve-row" if r['isM'] else ""
                             rv = int(r['Rank'])
@@ -470,7 +469,7 @@ else:
                             html += '<td style="width:'+w[6]+';" class="'+r_cls+' center-text">'+str(rv)+'</td>'
                             html += '<td style="width:'+w[7]+';" class="center-text">'+str(int(r["No. of Top"]))+'</td>'
                             html += '</tr>'
-                        st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
+                        st.markdown(html + '</tbody></table></div>', unsafe_allow_html=True)
                     with b_col:
                         if st.button("-" if is_expanded else "+", key="btn_"+race_id):
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
@@ -661,6 +660,7 @@ else:
                                         if setting == "Rank 1": s_mask &= (num_col == 1)
                                         elif setting == "Top 2": s_mask &= (num_col <= 2)
                                         elif setting == "Top 3": s_mask &= (num_col <= 3)
+                                        elif setting == "Not Top 3": s_mask &= ((num_col > 3) | (num_col == 0))
 
                                 sys_df = t_df[s_mask].copy()
                                 if not sys_df.empty:
@@ -909,7 +909,7 @@ else:
                 with c8: age_min, age_max = st.slider("Horse Age Range", 1, 20, (1, 20), 1)
                 
                 with st.expander("📊 Advanced Rank Filters", expanded=False):
-                    rank_opts = ["Any", "Rank 1", "Top 2", "Top 3"]
+                    rank_opts = ["Any", "Rank 1", "Top 2", "Top 3", "Not Top 3"]
                     
                     r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
                     with r1_c1: comb_f = st.selectbox("Comb. Rank", rank_opts)
@@ -1015,6 +1015,7 @@ else:
                         if setting == "Rank 1": return df_mask & (num_col == 1)
                         elif setting == "Top 2": return df_mask & (num_col <= 2)
                         elif setting == "Top 3": return df_mask & (num_col <= 3)
+                        elif setting == "Not Top 3": return df_mask & ((num_col > 3) | (num_col == 0))
                     return df_mask
 
                 mask = apply_rank_filter(mask, b_df, 'Comb. Rank', comb_f)
@@ -1043,7 +1044,6 @@ else:
                     breakdown['Total P/L'] = breakdown['Win_Profit'] + breakdown['Place_Profit']
                     breakdown = breakdown.sort_values(by=['Race Type', 'H/Cap', 'Price Bracket'])
 
-                    # --- UPDATED: Calculate Total ROI% for the KPI array ---
                     total_bets_for_roi = breakdown['Bets'].sum()
                     total_pl_for_roi = breakdown['Total P/L'].sum()
                     total_roi_perc = (total_pl_for_roi / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
@@ -1136,7 +1136,6 @@ else:
                     kpi3.metric("Places", int(kpis[2]))
                     kpi4.metric("Win P/L", f"£{kpis[3]:.2f}")
                     kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
-                    # --- UPDATED: Display Total ROI ---
                     kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
 
                     if res['qual_html'] != "":
@@ -1154,7 +1153,7 @@ else:
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
     
-  # --- TAB 5: RACE ANALYSIS ---
+   # --- TAB 5: RACE ANALYSIS ---
     with tab5:
         st.header("🏇 Race Analysis")
         
@@ -1224,7 +1223,7 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- ZERO-DRIFT SORTING PANEL ---
+                # --- NEW: ZERO-DRIFT SORTING PANEL ---
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
@@ -1241,7 +1240,6 @@ else:
                 
                 race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].copy()
                 
-                # Apply the sort dynamically before rendering the HTML
                 if sort_by in race_df.columns:
                     race_df['sort_temp'] = pd.to_numeric(race_df[sort_by], errors='coerce').fillna(999 if is_asc else -1)
                     race_df = race_df.sort_values(by=['sort_temp', 'Rank'], ascending=[is_asc, True])
