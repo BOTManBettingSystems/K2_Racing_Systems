@@ -1042,10 +1042,15 @@ else:
                     breakdown['Total P/L'] = breakdown['Win_Profit'] + breakdown['Place_Profit']
                     breakdown = breakdown.sort_values(by=['Race Type', 'H/Cap', 'Price Bracket'])
 
+                    # --- UPDATED: Calculate Total ROI% for the KPI array ---
+                    total_bets_for_roi = breakdown['Bets'].sum()
+                    total_pl_for_roi = breakdown['Total P/L'].sum()
+                    total_roi_perc = (total_pl_for_roi / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
+
                     kpis = [
-                        breakdown['Bets'].sum(), breakdown['Wins'].sum(), breakdown['Places'].sum(), 
+                        total_bets_for_roi, breakdown['Wins'].sum(), breakdown['Places'].sum(), 
                         breakdown['Win_Profit'].sum(), breakdown['Place_Profit'].sum(),
-                        breakdown['Total P/L'].sum()
+                        total_roi_perc
                     ]
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
@@ -1125,12 +1130,13 @@ else:
                     kpis = res['kpis']
                     st.markdown("### System Preview Performance")
                     kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-                    kpi1.metric("Total Bets", kpis[0])
-                    kpi2.metric("Wins", kpis[1])
-                    kpi3.metric("Places", kpis[2])
+                    kpi1.metric("Total Bets", int(kpis[0]))
+                    kpi2.metric("Wins", int(kpis[1]))
+                    kpi3.metric("Places", int(kpis[2]))
                     kpi4.metric("Win P/L", f"£{kpis[3]:.2f}")
                     kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
-                    kpi6.metric("Total P/L", f"£{kpis[5]:.2f}")
+                    # --- UPDATED: Display Total ROI ---
+                    kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
 
                     if res['qual_html'] != "":
                         st.markdown("<br>", unsafe_allow_html=True)
