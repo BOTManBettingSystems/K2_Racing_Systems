@@ -1154,7 +1154,7 @@ else:
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
     
-   # --- TAB 5: RACE ANALYSIS ---
+  # --- TAB 5: RACE ANALYSIS ---
     with tab5:
         st.header("🏇 Race Analysis")
         
@@ -1222,20 +1222,18 @@ else:
                             st.session_state.analysis_race = {'course': next_r[1], 'time': next_r[0]}
                             st.rerun()
                 
-st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- NEW: ZERO-DRIFT SORTING PANEL ---
+                # --- ZERO-DRIFT SORTING PANEL ---
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
                     
-                    # Add MSAI to the sort options dynamically if relevant
                     if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
                         sort_cols.insert(7, "MSAI Rank")
                         
                     sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=0)
                 with sc2:
-                    # Push the radio buttons down to align perfectly with the selectbox
                     st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
                     sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], horizontal=True, label_visibility="collapsed")
                 
@@ -1243,7 +1241,7 @@ st.markdown("<br>", unsafe_allow_html=True)
                 
                 race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].copy()
                 
-                # Force the sort column to act strictly as numbers so '10' doesn't sort before '2'
+                # Apply the sort dynamically before rendering the HTML
                 if sort_by in race_df.columns:
                     race_df['sort_temp'] = pd.to_numeric(race_df[sort_by], errors='coerce').fillna(999 if is_asc else -1)
                     race_df = race_df.sort_values(by=['sort_temp', 'Rank'], ascending=[is_asc, True])
@@ -1286,8 +1284,11 @@ st.markdown("<br>", unsafe_allow_html=True)
                     try: return f"{float(v):.2f}"
                     except: return "-"
 
+                show_draw = r_type_str in ['A/W', 'Turf']
+                form_colspan = 9 if show_draw else 8
+                
                 html = '<div style="overflow-x: auto; width: 100%;">'
-                html += '<table class="k2-table" style="min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
+                html += '<table class="k2-table" style="width:100%; min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
                 if show_msai: headers.append("MSAI Rank")
                 
@@ -1298,10 +1299,14 @@ st.markdown("<br>", unsafe_allow_html=True)
                 
                 for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
                 
-                html += '<th colspan="9" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
+                html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                for h in ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey", "Draw", "Speed", "Total"]: html += f'<th class="center-text">{h}</th>'
+                form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
+                if show_draw: form_headers.append("Draw")
+                form_headers.extend(["Speed", "Total"])
+                
+                for h in form_headers: html += f'<th class="center-text">{h}</th>'
                 html += '</tr></thead><tbody>'
                 
                 for _, r in race_df.iterrows():
@@ -1335,7 +1340,10 @@ st.markdown("<br>", unsafe_allow_html=True)
                     sp = fmt_2dp(gv(r, "Speed"))
                     ts = fmt_2dp(gv(r, "Total"))
                     
-                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td><td class="center-text">{dr}</td><td class="center-text">{sp}</td>'
+                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
+                    if show_draw:
+                        html += f'<td class="center-text">{dr}</td>'
+                    html += f'<td class="center-text">{sp}</td>'
                     html += f'<td class="center-text" style="font-weight:bold;">{ts}</td>'
                     html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
                     html += '</tr>'
