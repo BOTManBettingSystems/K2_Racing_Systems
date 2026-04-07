@@ -121,10 +121,11 @@ def load_ods_master():
     return None
 
 # --- 4. CSS ---
+# --- UPDATED: Added min-width: 850px to force whole-screen scrolling on mobile instead of line-by-line ---
 st.markdown('<style>'
     '.block-container { padding-top: 1.5rem !important; }'
     'header { visibility: hidden; }'
-    '.k2-table { border-collapse: collapse !important; width: 100% !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
+    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
     '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
     '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
     '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
@@ -437,12 +438,12 @@ else:
                 
                 h_col1, h_col2 = st.columns([19, 1], gap="small")
                 with h_col1:
-                    header = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><thead><tr>'
+                    header = '<table class="k2-table"><thead><tr>'
                     header += '<th style="width:'+w[0]+';" class="left-head">Date</th><th style="width:'+w[1]+';" class="left-head">Time</th>'
                     header += '<th style="width:'+w[2]+';" class="left-head">Course</th><th style="width:'+w[3]+';" class="left-head">Horse</th>'
                     header += '<th style="width:'+w[4]+';" class="left-head">Price</th><th style="width:'+w[5]+';" class="left-head">AI Prob</th>'
                     header += '<th style="width:'+w[6]+';" class="left-head">Rank</th><th style="width:'+w[7]+';" class="left-head">Tops</th>'
-                    header += '</tr></thead></table></div>'
+                    header += '</tr></thead></table>'
                     st.markdown(header, unsafe_allow_html=True)
 
                 for (d, t, c), group in df_p.groupby(['Date', 'Time', 'Course'], sort=False):
@@ -454,7 +455,7 @@ else:
                     
                     t_col, b_col = st.columns([19, 1], gap="small")
                     with t_col:
-                        html = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><tbody>'
+                        html = '<table class="k2-table"><tbody>'
                         for _, r in rows.iterrows():
                             row_cls = "mauve-row" if r['isM'] else ""
                             rv = int(r['Rank'])
@@ -469,7 +470,7 @@ else:
                             html += '<td style="width:'+w[6]+';" class="'+r_cls+' center-text">'+str(rv)+'</td>'
                             html += '<td style="width:'+w[7]+';" class="center-text">'+str(int(r["No. of Top"]))+'</td>'
                             html += '</tr>'
-                        st.markdown(html + '</tbody></table></div>', unsafe_allow_html=True)
+                        st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
                     with b_col:
                         if st.button("-" if is_expanded else "+", key="btn_"+race_id):
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
@@ -1259,11 +1260,8 @@ else:
                     try: return f"{float(v):.2f}"
                     except: return "-"
 
-                show_draw = r_type_str in ['A/W', 'Turf']
-                form_colspan = 9 if show_draw else 8
-                
                 html = '<div style="overflow-x: auto; width: 100%;">'
-                html += '<table class="k2-table" style="width:100%; min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
+                html += '<table class="k2-table" style="min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
                 if show_msai: headers.append("MSAI Rank")
                 
@@ -1274,14 +1272,10 @@ else:
                 
                 for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
                 
-                html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
+                html += '<th colspan="9" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
-                if show_draw: form_headers.append("Draw")
-                form_headers.extend(["Speed", "Total"])
-                
-                for h in form_headers: html += f'<th class="center-text">{h}</th>'
+                for h in ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey", "Draw", "Speed", "Total"]: html += f'<th class="center-text">{h}</th>'
                 html += '</tr></thead><tbody>'
                 
                 for _, r in race_df.iterrows():
@@ -1315,10 +1309,7 @@ else:
                     sp = fmt_2dp(gv(r, "Speed"))
                     ts = fmt_2dp(gv(r, "Total"))
                     
-                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
-                    if show_draw:
-                        html += f'<td class="center-text">{dr}</td>'
-                    html += f'<td class="center-text">{sp}</td>'
+                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td><td class="center-text">{dr}</td><td class="center-text">{sp}</td>'
                     html += f'<td class="center-text" style="font-weight:bold;">{ts}</td>'
                     html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
                     html += '</tr>'
