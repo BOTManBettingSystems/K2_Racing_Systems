@@ -1222,9 +1222,35 @@ else:
                             st.session_state.analysis_race = {'course': next_r[1], 'time': next_r[0]}
                             st.rerun()
                 
-                st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
                 
-                race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].sort_values(by=['Pure Rank', 'Rank'], ascending=[True, True])
+                # --- NEW: ZERO-DRIFT SORTING PANEL ---
+                sc1, sc2 = st.columns([1.5, 3])
+                with sc1:
+                    sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
+                    
+                    # Add MSAI to the sort options dynamically if relevant
+                    if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
+                        sort_cols.insert(7, "MSAI Rank")
+                        
+                    sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=0)
+                with sc2:
+                    # Push the radio buttons down to align perfectly with the selectbox
+                    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+                    sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], horizontal=True, label_visibility="collapsed")
+                
+                is_asc = "Ascending" in sort_dir
+                
+                race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].copy()
+                
+                # Force the sort column to act strictly as numbers so '10' doesn't sort before '2'
+                if sort_by in race_df.columns:
+                    race_df['sort_temp'] = pd.to_numeric(race_df[sort_by], errors='coerce').fillna(999 if is_asc else -1)
+                    race_df = race_df.sort_values(by=['sort_temp', 'Rank'], ascending=[is_asc, True])
+                else:
+                    race_df = race_df.sort_values(by=['Pure Rank', 'Rank'], ascending=[True, True])
+                
+                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
                 
                 show_msai = False
                 if r_type_str in ['A/W', 'Turf']:
