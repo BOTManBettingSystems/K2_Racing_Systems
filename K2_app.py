@@ -39,11 +39,11 @@ if "show_admin_insights" not in st.session_state:
 # --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 3. DATA ENGINE ---
+# --- 3. DATA ENGINE (Heavy Lifting - Models & History) ---
 @st.cache_resource(show_spinner=False)
 def load_all_data():
     try:
-        if not os.path.exists("DailyAIResults.zip"): return None, None, None, None, None, None, None, None, None, None
+        if not os.path.exists("DailyAIResults.zip"): return None, None, None, None, None, None, None, None, None
         
         with zipfile.ZipFile("DailyAIResults.zip", 'r') as z:
             csv_name = [f for f in z.namelist() if f.endswith('.csv')][0]
@@ -92,7 +92,17 @@ def load_all_data():
         clf.fit(train_df[feats], (train_df['Fin Pos'] == 1).astype(int))
         shadow_clf.fit(train_df[shadow_feats], (train_df['Fin Pos'] == 1).astype(int))
         gc.collect()
+                
+        last_live = df_live['Date_DT'].max() if (df_live is not None and not df_live.empty) else datetime.now()
+        first_hist = df_historic['Date_DT'].min() if not df_historic.empty else datetime(2024,1,1)
         
+        return clf, feats, shadow_clf, shadow_feats, df_historic, df_live, last_live, first_hist, df_all
+    except Exception as e: return None, str(e), None, None, None, None, None, None, None
+
+# --- NEW: FAST DAILY DATA ENGINE (Lightweight) ---
+@st.cache_data(show_spinner=False)
+def load_daily_data(_clf, feats):
+    try:
         df_today = pd.read_csv("DailyAIPredictionsData.csv") if os.path.exists("DailyAIPredictionsData.csv") else None
         if df_today is not None:
             df_today.columns = df_today.columns.str.strip()
@@ -104,14 +114,11 @@ def load_all_data():
             df_today['MSAI Rank'] = pd.to_numeric(df_today['MSAI Rank'], errors='coerce').fillna(0)
 
             missing_feats = [f for f in feats if f not in df_today.columns]
-            if not missing_feats:
-                df_today['ML_Prob'] = clf.predict_proba(df_today[feats].fillna(0))[:, 1]
-                
-        last_live = df_live['Date_DT'].max() if (df_live is not None and not df_live.empty) else datetime.now()
-        first_hist = df_historic['Date_DT'].min() if not df_historic.empty else datetime(2024,1,1)
-        
-        return clf, feats, shadow_clf, shadow_feats, df_historic, df_live, df_today, last_live, first_hist, df_all
-    except Exception as e: return None, str(e), None, None, None, None, None, None, None, None
+            if not missing_feats and _clf is not None:
+                df_today['ML_Prob'] = _clf.predict_proba(df_today[feats].fillna(0))[:, 1]
+        return df_today
+    except Exception as e:
+        return None
 
 @st.cache_data(show_spinner=False)
 def load_ods_master():
@@ -139,7 +146,8 @@ st.markdown('<style>'
 '</style>', unsafe_allow_html=True)
 
 # --- 5. EXECUTION & HEADER ---
-model, feats, shadow_model, shadow_feats, df_hist, df_live, df_today, last_live_date, first_res_date, df_all = load_all_data()
+model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
+df_today = load_daily_data(model, feats)
 
 if 'expanded_races' not in st.session_state: st.session_state.expanded_races = set()
 
@@ -148,7 +156,7 @@ if os.path.exists("K2logo.png"):
     with open("K2logo.png", "rb") as f: logo_b64 = base64.b64encode(f.read()).decode()
 logo_html = '<img src="data:image/png;base64,' + logo_b64 + '" height="55">' if logo_b64 else "K2"
 
-h_col1, h_col2 = st.columns([5, 1.8]) 
+h_col1, h_col2 = st.columns([5, 2.5]) 
 with h_col1:
     res_str = last_live_date.strftime('%d %b %Y').upper() if last_live_date else "08 MAR 2026"
     header_box = '<div style="display:flex; align-items:center; gap:20px; background-color:#1a3a5f; padding:15px; border-radius:10px; color:white;">' + logo_html + '<div>'
@@ -159,11 +167,19 @@ with h_col1:
 
 with h_col2:
     if st.session_state.get("is_admin"):
-        st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True) 
-        if st.button("Refresh and Re-process Data", key="admin_header_refresh", use_container_width=True):
-            st.cache_resource.clear()
-            st.cache_data.clear()
-            st.rerun()
+        st.markdown('<div style="margin-top:5px;"></div>', unsafe_allow_html=True) 
+        
+        # --- NEW: DUAL REFRESH BUTTONS ---
+        b1, b2 = st.columns(2)
+        with b1:
+            if st.button("🔄 Quick Refresh", help="Reloads today's races and systems instantly", use_container_width=True):
+                st.cache_data.clear() # Clears daily load and dashboard views
+                st.rerun()
+        with b2:
+            if st.button("⚠️ Full Rebuild", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
+                st.cache_resource.clear() # Clears Models
+                st.cache_data.clear()
+                st.rerun()
         
         btn_label = "🔙 Return to Dashboard" if st.session_state.get("show_admin_insights") else "🔍 Admin Insights"
         if st.button(btn_label, key="admin_toggle_btn", use_container_width=True):
