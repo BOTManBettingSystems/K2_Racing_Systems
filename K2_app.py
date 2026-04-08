@@ -1290,7 +1290,7 @@ else:
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
     
-    # --- Page 5: RACE ANALYSIS ---
+# --- Page 5: RACE ANALYSIS ---
     elif page == "🏇 Race Analysis":
         st.header("🏇 Race Analysis")
         
@@ -1422,7 +1422,7 @@ else:
                 form_colspan = 9 if show_draw else 8
                 
                 html = '<div style="overflow-x: auto; width: 100%;">'
-                html += '<table class="k2-table" style="width:100%; min-width: 900px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
+                html += '<table class="k2-table" style="width:100%; min-width: 1100px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
                 if show_msai: headers.append("MSAI Rank")
                 
@@ -1431,7 +1431,10 @@ else:
                 if 'No. of Top' in race_df.columns:
                     race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
                 
-                for h in headers: html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}">{h}</th>'
+                for h in headers: 
+                    # Explicitly widen the Horse column to 18% so names don't get cramped
+                    w_style = ' style="width: 18%;"' if h == "Horse" else ''
+                    html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
                 
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
