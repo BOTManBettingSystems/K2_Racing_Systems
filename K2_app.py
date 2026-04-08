@@ -99,95 +99,7 @@ def load_all_data():
         return clf, feats, shadow_clf, shadow_feats, df_historic, df_live, last_live, first_hist, df_all
     except Exception as e: return None, str(e), None, None, None, None, None, None, None
 
-# --- NEW: FAST DAILY DATA ENGINE (Lightweight) ---
-@st.cache_data(show_spinner=False)
-def load_daily_data(_clf, feats):
-    try:
-        df_today = pd.read_csv("DailyAIPredictionsData.csv") if os.path.exists("DailyAIPredictionsData.csv") else None
-        if df_today is not None:
-            df_today.columns = df_today.columns.str.strip()
-            df_today['No. of Top'] = pd.to_numeric(df_today.get('No. of Top', 0), errors='coerce').fillna(0)
-            df_today['Total'] = pd.to_numeric(df_today.get('Total', 0), errors='coerce').fillna(0)
-            df_today['Primary Rank'] = df_today.groupby(['Time', 'Course'])['No. of Top'].transform(lambda x: x.rank(ascending=False, method='min'))
-            df_today['Form Rank'] = df_today.groupby(['Time', 'Course'])['Total'].transform(lambda x: x.rank(ascending=False, method='min'))
-            if 'MSAI Rank' not in df_today.columns: df_today['MSAI Rank'] = 0
-            df_today['MSAI Rank'] = pd.to_numeric(df_today['MSAI Rank'], errors='coerce').fillna(0)
-
-            missing_feats = [f for f in feats if f not in df_today.columns]
-            if not missing_feats and _clf is not None:
-                df_today['ML_Prob'] = _clf.predict_proba(df_today[feats].fillna(0))[:, 1]
-        return df_today
-    except Exception as e:
-        return None
-
-@st.cache_data(show_spinner=False)
-def load_ods_master():
-    if os.path.exists("K2SystemsMaster.ods"):
-        return pd.read_excel("K2SystemsMaster.ods", engine="odf")
-    return None
-
-# --- 4. CSS ---
-st.markdown('<style>'
-    '.block-container { padding-top: 1.5rem !important; }'
-    'header { visibility: hidden; }'
-    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
-    '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
-    '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
-    '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
-    '.k2-table td.r3 { background-color: #1976d2 !important; color: white !important; font-weight: bold !important; }'
-    '.mauve-row td { background-color: #f3e5f5 !important; color: black !important; }'
-    '.k2-table tr:hover td { background-color: #aec6cf !important; color: black !important; }'
-    '.k2-table thead th { background-color: #000 !important; color: white !important; text-transform: uppercase; letter-spacing: 0.5px; }'
-    '.left-head { text-align: left !important; padding-left: 10px !important; }'
-    '.left-text { text-align: left !important; padding-left: 10px !important; }'
-    '.center-text { text-align: center !important; }'
-    '.pos-val { color: #2e7d32 !important; font-weight: bold !important; }'
-    '.neg-val { color: #d32f2f !important; font-weight: bold !important; }'
-'</style>', unsafe_allow_html=True)
-
-# --- 5. EXECUTION & HEADER ---
-model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
-df_today = load_daily_data(model, feats)
-
-if 'expanded_races' not in st.session_state: st.session_state.expanded_races = set()
-
-logo_b64 = ""
-if os.path.exists("K2logo.png"):
-    with open("K2logo.png", "rb") as f: logo_b64 = base64.b64encode(f.read()).decode()
-logo_html = '<img src="data:image/png;base64,' + logo_b64 + '" height="55">' if logo_b64 else "K2"
-
-h_col1, h_col2 = st.columns([5, 2.5]) 
-with h_col1:
-    res_str = last_live_date.strftime('%d %b %Y').upper() if last_live_date else "08 MAR 2026"
-    header_box = '<div style="display:flex; align-items:center; gap:20px; background-color:#1a3a5f; padding:15px; border-radius:10px; color:white;">' + logo_html + '<div>'
-    header_box += '<div style="font-size:24px; font-weight:bold;">K² Racing Systems</div>'
-    header_box += '<div style="margin-top:5px;"><span style="background:#2e7d32; color:white; padding:2px 8px; border-radius:10px; font-size:12px;">✅ LIVE RESULTS TO ' + res_str + '</span></div>'
-    header_box += '</div></div>'
-    st.markdown(header_box, unsafe_allow_html=True)
-
-with h_col2:
-    if st.session_state.get("is_admin"):
-        st.markdown('<div style="margin-top:5px;"></div>', unsafe_allow_html=True) 
-        
-        # --- NEW: DUAL REFRESH BUTTONS ---
-        b1, b2 = st.columns(2)
-        with b1:
-            if st.button("🔄 Quick Refresh", help="Reloads today's races and systems instantly", use_container_width=True):
-                st.cache_data.clear() # Clears daily load and dashboard views
-                st.rerun()
-        with b2:
-            if st.button("⚠️ Re-Train", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
-                st.cache_resource.clear() # Clears Models
-                st.cache_data.clear()
-                st.rerun()
-        
-        btn_label = "🔙 Return to Dashboard" if st.session_state.get("show_admin_insights") else "🔍 Admin Insights"
-        if st.button(btn_label, key="admin_toggle_btn", use_container_width=True):
-            st.session_state.show_admin_insights = not st.session_state.get("show_admin_insights", False)
-            st.rerun()
-
-# --- 6. OPTIMIZATION ENGINE FOR TAB 4 & ADMIN ---
-@st.cache_data(show_spinner=False)
+# --- NEW: SYSTEM PREPPER LOGIC (No Decorators - Used by Loaders) ---
 def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feats=None, is_live_today=False):
     b_df = _df.copy()
     b_df.columns = b_df.columns.str.strip()
@@ -257,6 +169,101 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     
     return b_df
 
+# --- NEW: FAST DAILY DATA ENGINE (Lightweight - Zero Lag) ---
+@st.cache_data(show_spinner=False)
+def load_daily_data(_model, feats, _shadow_model, shadow_feats):
+    try:
+        df_today = pd.read_csv("DailyAIPredictionsData.csv") if os.path.exists("DailyAIPredictionsData.csv") else None
+        if df_today is not None and not df_today.empty:
+            df_today.columns = df_today.columns.str.strip()
+            df_today['No. of Top'] = pd.to_numeric(df_today.get('No. of Top', 0), errors='coerce').fillna(0)
+            df_today['Total'] = pd.to_numeric(df_today.get('Total', 0), errors='coerce').fillna(0)
+            df_today['Primary Rank'] = df_today.groupby(['Time', 'Course'])['No. of Top'].transform(lambda x: x.rank(ascending=False, method='min'))
+            df_today['Form Rank'] = df_today.groupby(['Time', 'Course'])['Total'].transform(lambda x: x.rank(ascending=False, method='min'))
+            if 'MSAI Rank' not in df_today.columns: df_today['MSAI Rank'] = 0
+            df_today['MSAI Rank'] = pd.to_numeric(df_today['MSAI Rank'], errors='coerce').fillna(0)
+
+            missing_feats = [f for f in feats if f not in df_today.columns]
+            if not missing_feats and _model is not None:
+                # Pre-calculate ALL daily metrics instantly and cache them
+                df_today = prep_system_builder_data(df_today, _model, feats, _shadow_model, shadow_feats, is_live_today=True)
+        return df_today
+    except Exception as e:
+        return None
+
+# --- NEW: FAST HISTORY DATA ENGINE (Heavy - Zero Lag) ---
+@st.cache_resource(show_spinner=False)
+def get_prepped_history(_df, _model, feats, _shadow_model, shadow_feats):
+    if _df is None or _df.empty: return None
+    return prep_system_builder_data(_df, _model, feats, _shadow_model, shadow_feats, is_live_today=False)
+
+@st.cache_data(show_spinner=False)
+def load_ods_master():
+    if os.path.exists("K2SystemsMaster.ods"):
+        return pd.read_excel("K2SystemsMaster.ods", engine="odf")
+    return None
+
+# --- 4. CSS ---
+st.markdown('<style>'
+    '.block-container { padding-top: 1.5rem !important; }'
+    'header { visibility: hidden; }'
+    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
+    '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
+    '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
+    '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
+    '.k2-table td.r3 { background-color: #1976d2 !important; color: white !important; font-weight: bold !important; }'
+    '.mauve-row td { background-color: #f3e5f5 !important; color: black !important; }'
+    '.k2-table tr:hover td { background-color: #aec6cf !important; color: black !important; }'
+    '.k2-table thead th { background-color: #000 !important; color: white !important; text-transform: uppercase; letter-spacing: 0.5px; }'
+    '.left-head { text-align: left !important; padding-left: 10px !important; }'
+    '.left-text { text-align: left !important; padding-left: 10px !important; }'
+    '.center-text { text-align: center !important; }'
+    '.pos-val { color: #2e7d32 !important; font-weight: bold !important; }'
+    '.neg-val { color: #d32f2f !important; font-weight: bold !important; }'
+'</style>', unsafe_allow_html=True)
+
+# --- 5. EXECUTION & HEADER ---
+# All data is processed ONCE right here. Zero lag for the UI.
+model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
+df_today = load_daily_data(model, feats, shadow_model, shadow_feats)
+df_all_prepped = get_prepped_history(df_all, model, feats, shadow_model, shadow_feats)
+
+if 'expanded_races' not in st.session_state: st.session_state.expanded_races = set()
+
+logo_b64 = ""
+if os.path.exists("K2logo.png"):
+    with open("K2logo.png", "rb") as f: logo_b64 = base64.b64encode(f.read()).decode()
+logo_html = '<img src="data:image/png;base64,' + logo_b64 + '" height="55">' if logo_b64 else "K2"
+
+h_col1, h_col2 = st.columns([5, 2.5]) 
+with h_col1:
+    res_str = last_live_date.strftime('%d %b %Y').upper() if last_live_date else "08 MAR 2026"
+    header_box = '<div style="display:flex; align-items:center; gap:20px; background-color:#1a3a5f; padding:15px; border-radius:10px; color:white;">' + logo_html + '<div>'
+    header_box += '<div style="font-size:24px; font-weight:bold;">K² Racing Systems</div>'
+    header_box += '<div style="margin-top:5px;"><span style="background:#2e7d32; color:white; padding:2px 8px; border-radius:10px; font-size:12px;">✅ LIVE RESULTS TO ' + res_str + '</span></div>'
+    header_box += '</div></div>'
+    st.markdown(header_box, unsafe_allow_html=True)
+
+with h_col2:
+    if st.session_state.get("is_admin"):
+        st.markdown('<div style="margin-top:5px;"></div>', unsafe_allow_html=True) 
+        
+        b1, b2 = st.columns(2)
+        with b1:
+            if st.button("🔄 Quick Refresh", help="Reloads today's races and systems instantly", use_container_width=True):
+                st.cache_data.clear() # Clears daily load and dashboard views
+                st.rerun()
+        with b2:
+            if st.button("⚠️ Re-Train", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
+                st.cache_resource.clear() # Clears Models
+                st.cache_data.clear()
+                st.rerun()
+        
+        btn_label = "🔙 Return to Dashboard" if st.session_state.get("show_admin_insights") else "🔍 Admin Insights"
+        if st.button(btn_label, key="admin_toggle_btn", use_container_width=True):
+            st.session_state.show_admin_insights = not st.session_state.get("show_admin_insights", False)
+            st.rerun()
+
 # --- HELPER FOR TAB 2 SPEED ---
 @st.cache_data(show_spinner=False)
 def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_max):
@@ -283,8 +290,8 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
     st.header("🔍 Admin Data Insights (Multi-Factor Analysis)")
     st.markdown("Combine multiple data elements to discover highly profitable 'Golden Rules' hidden in your historical data.")
     
-    if df_all is not None and not df_all.empty:
-        ins_df = prep_system_builder_data(df_all, model, feats, shadow_model, shadow_feats)
+    if df_all_prepped is not None and not df_all_prepped.empty:
+        ins_df = df_all_prepped
         
         i_col1, i_col2, i_col3 = st.columns([1.5, 1.5, 1])
         with i_col1:
@@ -423,7 +430,6 @@ else:
                 
                 df_p['Rank'] = df_p.groupby(['Date', 'Time', 'Course'])['ML_Prob'].rank(ascending=False, method='min')
                 
-                # --- RE-ADDED: The missing logic to find the highest 'No. of Top' for the Mauve highlight ---
                 if 'No. of Top' in df_p.columns:
                     df_p['No. of Top'] = pd.to_numeric(df_p['No. of Top'], errors='coerce').fillna(0)
                     df_p['Max_Top'] = df_p.groupby(['Date', 'Time', 'Course'])['No. of Top'].transform('max')
@@ -608,7 +614,7 @@ else:
                         st.warning("Data Check: 'ML_Prob' could not be calculated. Please check your source CSV for missing columns.")
                     else:
                         all_today_picks = []
-                        t_df = prep_system_builder_data(df_today, model, feats, shadow_model, shadow_feats, is_live_today=True)
+                        t_df = df_today
 
                         saved_systems = {}
                         if pool_choice in ["Public", "Combined"] and os.path.exists("K2_user_systems.json"):
@@ -868,8 +874,8 @@ else:
                 st.session_state.form_reset_counter += 1
                 st.rerun()
 
-        if df_all is not None and not df_all.empty:
-            b_df = prep_system_builder_data(df_all, model, feats, shadow_model, shadow_feats)
+        if df_all_prepped is not None and not df_all_prepped.empty:
+            b_df = df_all_prepped
 
             # --- Extract available options from the dataset ---
             rt_opts = b_df['Race Type'].dropna().unique().tolist()
@@ -1178,7 +1184,7 @@ else:
                     val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP", "NOT AI Value vs BSP", "NOT My Value vs BSP"]
 
                     if df_today is not None and not df_today.empty:
-                        t_df = prep_system_builder_data(df_today, model, feats, shadow_model, shadow_feats, is_live_today=True)
+                        t_df = df_today
                         
                         t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap))
                         
@@ -1293,7 +1299,7 @@ else:
         </style>''', unsafe_allow_html=True)
         
         if df_today is not None and not df_today.empty:
-            ta_df = prep_system_builder_data(df_today, model, feats, shadow_model, shadow_feats, is_live_today=True)
+            ta_df = df_today
             
             ta_df['Time'] = ta_df['Time'].astype(str).str.strip()
             ta_df['Course'] = ta_df['Course'].astype(str).str.strip()
@@ -1350,7 +1356,6 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- ZERO-DRIFT SORTING PANEL ---
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
