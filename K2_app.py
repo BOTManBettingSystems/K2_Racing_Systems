@@ -36,8 +36,8 @@ if not check_password(): st.stop()
 if "show_admin_insights" not in st.session_state:
     st.session_state.show_admin_insights = False
 
-# --- 2. PAGE CONFIG ---
-st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. PAGE CONFIG (Updated for Sidebar) ---
+st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="expanded")
 
 # --- 3. DATA ENGINE (Heavy Lifting - Models & History) ---
 @st.cache_resource(show_spinner=False)
@@ -283,7 +283,7 @@ def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_
 
 
 # -------------------------------------------------------------------------
-# VIEW CONTROLLER: Either show Admin Insights OR the Normal Tabs
+# VIEW CONTROLLER: Either show Admin Insights OR the Normal Sidebar Menu
 # -------------------------------------------------------------------------
 if st.session_state.get("is_admin") and st.session_state.get("show_admin_insights"):
     # --- ADMIN INSIGHTS VIEW ---
@@ -416,11 +416,15 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
         st.warning("No data available.")
 
 else:
-    # --- NORMAL DASHBOARD TABS VIEW ---
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis"])
+    # --- NORMAL DASHBOARD SIDEBAR NAVIGATION ---
+    st.sidebar.markdown("### 🧭 Main Menu")
+    page = st.sidebar.radio(
+        "Select an Option:",
+        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis"]
+    )
 
-    # --- Tab 1: Daily Predictions ---
-    with tab1:
+    # --- Page 1: Daily Predictions ---
+    if page == "📅 Daily Predictions":
         st.header("📅 Daily Top 2 Predictions")
         
         if df_today is not None and not df_today.empty:
@@ -497,8 +501,8 @@ else:
                             else: st.session_state.expanded_races.add(race_id)
                             st.rerun()
                             
-    # --- TAB 2: DASHBOARD ---
-    with tab2:
+    # --- Page 2: DASHBOARD ---
+    elif page == "📊 AI Top 2 Results":
         if "perf_mode" not in st.session_state: st.session_state.perf_mode = "Live"
         st.markdown('<div class="filter-area">', unsafe_allow_html=True)
         cb1, cb2, cd = st.columns([1, 1, 2])
@@ -590,8 +594,8 @@ else:
                     top_tracks = pd.DataFrame(track_stats).sort_values('ROI%', ascending=False).head(5)
                     st.table(top_tracks.set_index('Course'))
 
-    # --- Tab 3: General Systems Dashboard ---
-    with tab3:
+    # --- Page 3: General Systems Dashboard ---
+    elif page == "🧠 General Systems":
         st.header("🧠 General Systems")
         
         smart_view = st.radio("Select View:", ["📅 Today's Qualifiers", "📊 Live Performance (Master file)"], horizontal=True)
@@ -857,8 +861,8 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
-    # --- Tab 4: Mini SYSTEM BUILDER ---
-    with tab4:
+    # --- Page 4: Mini SYSTEM BUILDER ---
+    elif page == "🛠️ System Builder":
         if "form_reset_counter" not in st.session_state:
             st.session_state.form_reset_counter = 0
 
@@ -1119,7 +1123,7 @@ else:
                 rnr_mask = pd.Series(False, index=b_df.index)
                 if "2-7" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 2) & (b_df['No. of Rnrs'] <= 7)
                 if "8-12" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 8) & (b_df['No. of Rnrs'] <= 12)
-                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (b_df['No. of Rnrs'] <= 16)
+                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
                 if ">16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] > 16)
                 mask = mask & rnr_mask
 
@@ -1286,8 +1290,8 @@ else:
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
     
-   # --- TAB 5: RACE ANALYSIS ---
-    with tab5:
+    # --- Page 5: RACE ANALYSIS ---
+    elif page == "🏇 Race Analysis":
         st.header("🏇 Race Analysis")
         
         st.markdown('''<style>
