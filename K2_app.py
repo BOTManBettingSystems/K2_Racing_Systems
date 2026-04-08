@@ -176,7 +176,7 @@ with h_col2:
                 st.cache_data.clear() # Clears daily load and dashboard views
                 st.rerun()
         with b2:
-            if st.button("⚠️ Full Rebuild", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
+            if st.button("⚠️ Re-Train", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
                 st.cache_resource.clear() # Clears Models
                 st.cache_data.clear()
                 st.rerun()
