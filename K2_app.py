@@ -1420,7 +1420,6 @@ else:
 
                 show_draw = r_type_str in ['A/W', 'Turf']
                 form_colspan = 9 if show_draw else 8
-                
                 html = '<div style="overflow-x: auto; width: 100%;">'
                 html += '<table class="k2-table" style="width:100%; min-width: 950px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
@@ -1432,8 +1431,8 @@ else:
                     race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
                 
                 for h in headers: 
-                    # Dropped Horse down to 10%
-                    w_style = ' style="width: 10%;"' if h == "Horse" else ''
+                    # Dropped Horse down to 9%
+                    w_style = ' style="width: 9%;"' if h == "Horse" else ''
                     html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
                 
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
@@ -1444,8 +1443,8 @@ else:
                 form_headers.extend(["Speed", "Total"])
                 
                 for h in form_headers: 
-                    # Bumped Distance up to 7%
-                    w_style_f = ' style="width: 7%;"' if h == "Distance" else ''
+                    # Bumped Distance up to 8%
+                    w_style_f = ' style="width: 8%;"' if h == "Distance" else ''
                     html += f'<th class="center-text"{w_style_f}>{h}</th>'
                 html += '</tr></thead><tbody>'
                 
