@@ -9,7 +9,26 @@ import gc
 import json
 from datetime import datetime
 
-# --- 1. ACCESS CONTROL ---
+# --- 1. ACCESS CONTROL & LOGGING ---
+def log_login(role):
+    log_file = "K2_login_log.csv"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Safely attempt to grab the user's IP Address
+    client_ip = "Unknown"
+    try:
+        if hasattr(st, 'context') and hasattr(st.context, 'headers'):
+            # Grabs the true IP if hosted on a cloud platform
+            client_ip = st.context.headers.get("X-Forwarded-For", "Unknown").split(",")[0]
+    except Exception:
+        pass
+
+    file_exists = os.path.exists(log_file)
+    with open(log_file, mode='a', newline='', encoding='utf-8') as f:
+        if not file_exists:
+            f.write("Timestamp,Role,IP_Address\n")
+        f.write(f"{timestamp},{role},{client_ip}\n")
+
 def check_password():
     def password_entered():
         if "passwords" in st.secrets:
@@ -20,6 +39,11 @@ def check_password():
             if entered in [admin_p, guest_p]:
                 st.session_state["password_correct"] = True
                 st.session_state["is_admin"] = (entered == admin_p)
+                
+                # --- LOG THE SUCCESSFUL LOGIN ---
+                role = "Admin" if st.session_state["is_admin"] else "Guest"
+                log_login(role)
+                
                 if "password_input" in st.session_state:
                     del st.session_state["password_input"]
                 return
@@ -1529,3 +1553,17 @@ else:
 
         else:
             st.info("No data available for today's races.")
+
+# --- ADMIN SIDEBAR TOOLS ---
+    if st.session_state.get("is_admin"):
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### ⚙️ Admin Tools")
+        if os.path.exists("K2_login_log.csv"):
+            with open("K2_login_log.csv", "rb") as f:
+                st.sidebar.download_button(
+                    label="📥 Download Login Logs", 
+                    data=f, 
+                    file_name=f"K2_Login_Logs_{datetime.now().strftime('%d%m%y')}.csv", 
+                    mime="text/csv", 
+                    use_container_width=True
+                )
