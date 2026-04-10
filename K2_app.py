@@ -10,6 +10,25 @@ import json
 from datetime import datetime
 
 # --- 1. ACCESS CONTROL & LOGGING ---
+def log_performance(action_name):
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        # Convert bytes to Megabytes
+        mem_mb = process.memory_info().rss / (1024 * 1024)
+        cpu_pct = psutil.cpu_percent(interval=None)
+        
+        log_file = "K2_performance_log.csv"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        file_exists = os.path.exists(log_file)
+        with open(log_file, mode='a', newline='', encoding='utf-8') as f:
+            if not file_exists:
+                f.write("Timestamp,Action,RAM_Used_MB,CPU_Percent\n")
+            f.write(f"{timestamp},{action_name},{mem_mb:.1f},{cpu_pct:.1f}\n")
+    except ImportError:
+        pass # Fails silently if psutil isn't installed yet
+
 def log_login(role):
     log_file = "K2_login_log.csv"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -18,7 +37,6 @@ def log_login(role):
     client_ip = "Unknown"
     try:
         if hasattr(st, 'context') and hasattr(st.context, 'headers'):
-            # Grabs the true IP if hosted on a cloud platform
             client_ip = st.context.headers.get("X-Forwarded-For", "Unknown").split(",")[0]
     except Exception:
         pass
@@ -60,10 +78,10 @@ if not check_password(): st.stop()
 if "show_admin_insights" not in st.session_state:
     st.session_state.show_admin_insights = False
 
-# --- 2. PAGE CONFIG (Updated for Sidebar) ---
+# --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="expanded")
 
-# --- 3. DATA ENGINE (Heavy Lifting - Models & History) ---
+# --- 3. DATA ENGINE ---
 @st.cache_resource(show_spinner=False)
 def load_all_data():
     try:
@@ -120,10 +138,10 @@ def load_all_data():
         last_live = df_live['Date_DT'].max() if (df_live is not None and not df_live.empty) else datetime.now()
         first_hist = df_historic['Date_DT'].min() if not df_historic.empty else datetime(2024,1,1)
         
+        log_performance("Full ML Retrain & History Load")
         return clf, feats, shadow_clf, shadow_feats, df_historic, df_live, last_live, first_hist, df_all
     except Exception as e: return None, str(e), None, None, None, None, None, None, None
 
-# --- NEW: SYSTEM PREPPER LOGIC (No Decorators - Used by Loaders) ---
 def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feats=None, is_live_today=False):
     b_df = _df.copy()
     b_df.columns = b_df.columns.str.strip()
@@ -193,7 +211,6 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     
     return b_df
 
-# --- NEW: FAST DAILY DATA ENGINE (Lightweight - Zero Lag) ---
 @st.cache_data(show_spinner=False)
 def load_daily_data(_model, feats, _shadow_model, shadow_feats):
     try:
@@ -209,13 +226,13 @@ def load_daily_data(_model, feats, _shadow_model, shadow_feats):
 
             missing_feats = [f for f in feats if f not in df_today.columns]
             if not missing_feats and _model is not None:
-                # Pre-calculate ALL daily metrics instantly and cache them
                 df_today = prep_system_builder_data(df_today, _model, feats, _shadow_model, shadow_feats, is_live_today=True)
+        
+        log_performance("Daily Data Processed")
         return df_today
     except Exception as e:
         return None
 
-# --- NEW: FAST HISTORY DATA ENGINE (Heavy - Zero Lag) ---
 @st.cache_resource(show_spinner=False)
 def get_prepped_history(_df, _model, feats, _shadow_model, shadow_feats):
     if _df is None or _df.empty: return None
@@ -227,7 +244,7 @@ def load_ods_master():
         return pd.read_excel("K2SystemsMaster.ods", engine="odf")
     return None
 
-# --- 4. CSS ---
+# --- 4. CSS (Updated for Wrapping Headers) ---
 st.markdown('<style>'
     '.block-container { padding-top: 1.5rem !important; }'
     'header { visibility: hidden; }'
@@ -247,7 +264,6 @@ st.markdown('<style>'
 '</style>', unsafe_allow_html=True)
 
 # --- 5. EXECUTION & HEADER ---
-# All data is processed ONCE right here. Zero lag for the UI.
 model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
 df_today = load_daily_data(model, feats, shadow_model, shadow_feats)
 df_all_prepped = get_prepped_history(df_all, model, feats, shadow_model, shadow_feats)
@@ -275,11 +291,11 @@ with h_col2:
         b1, b2 = st.columns(2)
         with b1:
             if st.button("🔄 Quick Refresh", help="Reloads today's races and systems instantly", use_container_width=True):
-                st.cache_data.clear() # Clears daily load and dashboard views
+                st.cache_data.clear()
                 st.rerun()
         with b2:
             if st.button("⚠️ Re-Train", help="Retrains AI and extracts history (~5 mins)", use_container_width=True):
-                st.cache_resource.clear() # Clears Models
+                st.cache_resource.clear()
                 st.cache_data.clear()
                 st.rerun()
         
@@ -288,7 +304,6 @@ with h_col2:
             st.session_state.show_admin_insights = not st.session_state.get("show_admin_insights", False)
             st.rerun()
 
-# --- HELPER FOR TAB 2 SPEED ---
 @st.cache_data(show_spinner=False)
 def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_max):
     mask = (_df['7:30AM Price'] >= p_min) & (_df['7:30AM Price'] <= p_max)
@@ -307,7 +322,7 @@ def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_
 
 
 # -------------------------------------------------------------------------
-# VIEW CONTROLLER: Either show Admin Insights OR the Normal Sidebar Menu
+# VIEW CONTROLLER
 # -------------------------------------------------------------------------
 if st.session_state.get("is_admin") and st.session_state.get("show_admin_insights"):
     # --- ADMIN INSIGHTS VIEW ---
@@ -440,14 +455,13 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
         st.warning("No data available.")
 
 else:
-    # --- NORMAL DASHBOARD SIDEBAR NAVIGATION ---
+    # --- NORMAL DASHBOARD ---
     st.sidebar.markdown("### 🧭 Main Menu")
     page = st.sidebar.radio(
         "Select an Option:",
         ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis"]
     )
 
-    # --- Page 1: Daily Predictions ---
     if page == "📅 Daily Predictions":
         st.header("📅 Daily Top 2 Predictions")
         
@@ -524,8 +538,7 @@ else:
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
                             else: st.session_state.expanded_races.add(race_id)
                             st.rerun()
-                            
-    # --- Page 2: DASHBOARD ---
+
     elif page == "📊 AI Top 2 Results":
         if "perf_mode" not in st.session_state: st.session_state.perf_mode = "Live"
         st.markdown('<div class="filter-area">', unsafe_allow_html=True)
@@ -618,7 +631,6 @@ else:
                     top_tracks = pd.DataFrame(track_stats).sort_values('ROI%', ascending=False).head(5)
                     st.table(top_tracks.set_index('Course'))
 
-    # --- Page 3: General Systems Dashboard ---
     elif page == "🧠 General Systems":
         st.header("🧠 General Systems")
         
@@ -885,7 +897,6 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
-    # --- Page 4: Mini SYSTEM BUILDER ---
     elif page == "🛠️ System Builder":
         if "form_reset_counter" not in st.session_state:
             st.session_state.form_reset_counter = 0
@@ -905,7 +916,6 @@ else:
         if df_all_prepped is not None and not df_all_prepped.empty:
             b_df = df_all_prepped
 
-            # --- Extract available options from the dataset ---
             rt_opts = b_df['Race Type'].dropna().unique().tolist()
             hcap_opts = b_df['H/Cap'].dropna().unique().tolist()
             rnr_opts = ["2-7", "8-12", "13-16", ">16"]
@@ -937,7 +947,6 @@ else:
                 for k, v in defaults.items():
                     if k not in st.session_state: st.session_state[k] = v
 
-            # --- ROBUST INJECTION FUNCTION ---
             def load_sys_to_ui(sys_data):
                 st.session_state['ui_months'] = sys_data.get('months', all_months)
                 st.session_state['ui_courses'] = [c for c in sys_data.get('courses', []) if c in course_opts]
@@ -974,7 +983,6 @@ else:
                 
                 st.session_state.form_reset_counter += 1
 
-            # --- Explicit index retrieval helpers for selectboxes ---
             def get_ai_idx():
                 val = st.session_state.get('ui_ai_rank_filter', 'Any')
                 return ai_rank_opts.index(val) if val in ai_rank_opts else 0
@@ -1147,7 +1155,7 @@ else:
                 rnr_mask = pd.Series(False, index=b_df.index)
                 if "2-7" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 2) & (b_df['No. of Rnrs'] <= 7)
                 if "8-12" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 8) & (b_df['No. of Rnrs'] <= 12)
-                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (b_df['No. of Rnrs'] <= 16)
+                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
                 if ">16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] > 16)
                 mask = mask & rnr_mask
 
@@ -1313,8 +1321,7 @@ else:
 
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
-    
-# --- Page 5: RACE ANALYSIS ---
+
     elif page == "🏇 Race Analysis":
         st.header("🏇 Race Analysis")
         
@@ -1395,19 +1402,18 @@ else:
                     if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
                         sort_cols.insert(7, "MSAI Rank")
                     
-                    # Safety net: If a previous sort column doesn't exist in this race, default to 0
                     try: current_sort_idx = sort_cols.index(st.session_state.ra_sort_by)
                     except ValueError: current_sort_idx = 0
                         
                     sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=current_sort_idx)
-                    st.session_state.ra_sort_by = sort_by # Save immediately to memory
+                    st.session_state.ra_sort_by = sort_by 
                     
                 with sc2:
                     st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
                     
                     dir_idx = 0 if "Ascending" in st.session_state.ra_sort_dir else 1
                     sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], index=dir_idx, horizontal=True, label_visibility="collapsed")
-                    st.session_state.ra_sort_dir = sort_dir # Save immediately to memory
+                    st.session_state.ra_sort_dir = sort_dir 
                 
                 is_asc = "Ascending" in sort_dir
                 
@@ -1457,6 +1463,7 @@ else:
 
                 show_draw = r_type_str in ['A/W', 'Turf']
                 form_colspan = 9 if show_draw else 8
+                
                 html = '<div style="overflow-x: auto; width: 100%;">'
                 html += '<table class="k2-table" style="width:100%; min-width: 950px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
                 headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
@@ -1468,21 +1475,17 @@ else:
                     race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
                 
                 for h in headers: 
-                    # Dropped Horse down to 9%
                     w_style = ' style="width: 9%;"' if h == "Horse" else ''
                     html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
                 
-                 # ... [Keep the top headers exactly as they are] ...
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                # Changed "Distance" to "Dist." right here
                 form_headers = ["Ability", "Going", "Dist.", "Course/Sim", "Trainer", "Jockey"]
                 if show_draw: form_headers.append("Draw")
                 form_headers.extend(["Speed", "Total"])
                 
                 for h in form_headers: 
-                    # Updated the target word to "Dist." to apply the width
                     w_style_f = ' style="width: 8%;"' if h == "Dist." else ''
                     html += f'<th class="center-text"{w_style_f}>{h}</th>'
                 html += '</tr></thead><tbody>'
@@ -1554,16 +1557,31 @@ else:
         else:
             st.info("No data available for today's races.")
 
-# --- ADMIN SIDEBAR TOOLS ---
+    # --- ADMIN SIDEBAR TOOLS ---
     if st.session_state.get("is_admin"):
         st.sidebar.markdown("---")
         st.sidebar.markdown("### ⚙️ Admin Tools")
+        
+        # 1. Login Logs
         if os.path.exists("K2_login_log.csv"):
             with open("K2_login_log.csv", "rb") as f:
                 st.sidebar.download_button(
                     label="📥 Download Login Logs", 
-                    data=f, 
+                    data=f.read(), 
                     file_name=f"K2_Login_Logs_{datetime.now().strftime('%d%m%y')}.csv", 
+                    mime="text/csv", 
+                    use_container_width=True
+                )
+        else:
+            st.sidebar.info("ℹ️ No login logs generated yet.")
+
+        # 2. Server Performance Logs
+        if os.path.exists("K2_performance_log.csv"):
+            with open("K2_performance_log.csv", "rb") as f:
+                st.sidebar.download_button(
+                    label="📊 Download Server RAM Logs", 
+                    data=f.read(), 
+                    file_name=f"K2_RAM_Logs_{datetime.now().strftime('%d%m%y')}.csv", 
                     mime="text/csv", 
                     use_container_width=True
                 )
