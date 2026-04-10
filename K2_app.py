@@ -1432,8 +1432,8 @@ else:
                     race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
                 
                 for h in headers: 
-                    # Tamed the width down to 12%
-                    w_style = ' style="width: 12%;"' if h == "Horse" else ''
+                    # Nudged Horse down to 11%
+                    w_style = ' style="width: 11%;"' if h == "Horse" else ''
                     html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
                 
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
@@ -1443,7 +1443,10 @@ else:
                 if show_draw: form_headers.append("Draw")
                 form_headers.extend(["Speed", "Total"])
                 
-                for h in form_headers: html += f'<th class="center-text">{h}</th>'
+                for h in form_headers: 
+                    # Gave Distance a dedicated 6% width so it stays on one line
+                    w_style_f = ' style="width: 6%;"' if h == "Distance" else ''
+                    html += f'<th class="center-text"{w_style_f}>{h}</th>'
                 html += '</tr></thead><tbody>'
                 
                 for _, r in race_df.iterrows():
