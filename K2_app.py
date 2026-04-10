@@ -1360,17 +1360,30 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
+                # --- MEMORY ANCHORS FOR SORTING ---
+                if 'ra_sort_by' not in st.session_state: st.session_state.ra_sort_by = "Pure Rank"
+                if 'ra_sort_dir' not in st.session_state: st.session_state.ra_sort_dir = "Ascending (Low to High)"
+                
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     sort_cols = ["Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
                     
                     if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
                         sort_cols.insert(7, "MSAI Rank")
+                    
+                    # Safety net: If a previous sort column doesn't exist in this race, default to 0
+                    try: current_sort_idx = sort_cols.index(st.session_state.ra_sort_by)
+                    except ValueError: current_sort_idx = 0
                         
-                    sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=0)
+                    sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=current_sort_idx)
+                    st.session_state.ra_sort_by = sort_by # Save immediately to memory
+                    
                 with sc2:
                     st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-                    sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], horizontal=True, label_visibility="collapsed")
+                    
+                    dir_idx = 0 if "Ascending" in st.session_state.ra_sort_dir else 1
+                    sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], index=dir_idx, horizontal=True, label_visibility="collapsed")
+                    st.session_state.ra_sort_dir = sort_dir # Save immediately to memory
                 
                 is_asc = "Ascending" in sort_dir
                 
