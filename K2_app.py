@@ -705,7 +705,7 @@ else:
                                 r_m = pd.Series(False, index=t_df.index)
                                 if "2-7" in rnrs: r_m |= (t_df['No. of Rnrs'] >= 2) & (t_df['No. of Rnrs'] <= 7)
                                 if "8-12" in rnrs: r_m |= (t_df['No. of Rnrs'] >= 8) & (t_df['No. of Rnrs'] <= 12)
-                                if "13-16" in rnrs: r_m |= (t_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
+                                if "" in rnrs: r_m |= (t_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
                                 if ">16" in rnrs: r_m |= (t_df['No. of Rnrs'] > 16)
                                 if not r_m.any() and not rnrs: r_m = pd.Series(True, index=t_df.index)
                                 s_mask &= r_m
@@ -918,7 +918,7 @@ else:
 
             rt_opts = b_df['Race Type'].dropna().unique().tolist()
             hcap_opts = b_df['H/Cap'].dropna().unique().tolist()
-            rnr_opts = ["2-7", "8-12", "13-16", ">16"]
+            rnr_opts = ["2-7", "8-12", "", ">16"]
             class_opts = sorted([int(x) for x in b_df['Class'].dropna().unique() if str(x).isdigit() or isinstance(x, (int, float))]) if 'Class' in b_df.columns else []
             cm_opts = [x for x in b_df['Class Move'].dropna().unique() if x in ['U', 'D', 'S']] if 'Class Move' in b_df.columns else []
             sex_opts = ["c", "f", "g", "m", "h", "r", "x"]
@@ -1155,7 +1155,7 @@ else:
                 rnr_mask = pd.Series(False, index=b_df.index)
                 if "2-7" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 2) & (b_df['No. of Rnrs'] <= 7)
                 if "8-12" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 8) & (b_df['No. of Rnrs'] <= 12)
-                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (t_df['No. of Rnrs'] <= 16)
+                if "13-16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 13) & (b_df['No. of Rnrs'] <= 16)
                 if ">16" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] > 16)
                 mask = mask & rnr_mask
 
