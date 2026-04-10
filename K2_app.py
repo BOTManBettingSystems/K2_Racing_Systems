@@ -1435,16 +1435,18 @@ else:
                     w_style = ' style="width: 9%;"' if h == "Horse" else ''
                     html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
                 
+                 # ... [Keep the top headers exactly as they are] ...
                 html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
                 html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
                 
-                form_headers = ["Ability", "Going", "Distance", "Course/Sim", "Trainer", "Jockey"]
+                # Changed "Distance" to "Dist." right here
+                form_headers = ["Ability", "Going", "Dist.", "Course/Sim", "Trainer", "Jockey"]
                 if show_draw: form_headers.append("Draw")
                 form_headers.extend(["Speed", "Total"])
                 
                 for h in form_headers: 
-                    # Bumped Distance up to 8%
-                    w_style_f = ' style="width: 8%;"' if h == "Distance" else ''
+                    # Updated the target word to "Dist." to apply the width
+                    w_style_f = ' style="width: 8%;"' if h == "Dist." else ''
                     html += f'<th class="center-text"{w_style_f}>{h}</th>'
                 html += '</tr></thead><tbody>'
                 
