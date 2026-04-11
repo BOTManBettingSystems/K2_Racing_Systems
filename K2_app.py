@@ -245,36 +245,39 @@ def load_ods_master():
     return None
 
 # --- 4. CSS (Sidebar Recovery & Mobile Optimization) ---
-st.markdown('<style>'
-    '.block-container { padding-top: 1.5rem !important; }'
+st.markdown("""
+<style>
+    .block-container { padding-top: 1.5rem !important; }
     
     /* HIDE STREAMLIT BRANDING BUT KEEP THE SIDEBAR BUTTON FUNCTIONAL */
-    '#MainMenu {visibility: hidden;}'
-    'footer {visibility: hidden;}'
-    'header[data-testid="stHeader"] { background-color: rgba(0,0,0,0) !important; color: #1a3a5f !important; }'
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header[data-testid="stHeader"] { background-color: rgba(0,0,0,0) !important; color: #1a3a5f !important; }
     
     /* STYLE THE SIDEBAR OPENER BUTTON SO IT IS EASY TO SEE */
-    'button[data-testid="stSidebarCollapse"] { background-color: #1a3a5f !important; color: white !important; border-radius: 5px !important; margin-left: 10px !important; }'
+    button[data-testid="stSidebarCollapse"] { background-color: #1a3a5f !important; color: white !important; border-radius: 5px !important; margin-left: 10px !important; }
 
     /* MOBILE & TABLET SCROLLING OPTIMIZATION */
-    '.main .block-container { overflow-x: hidden; -webkit-overflow-scrolling: touch; }'
-    '.k2-table-container { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }'
+    .main .block-container { overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+    .k2-table-container { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
     
     /* TABLE STYLING */
-    '.k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }'
-    '.k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }'
-    '.k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }'
-    '.k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }'
-    '.k2-table td.r3 { background-color: #1976d2 !important; color: white !important; font-weight: bold !important; }'
-    '.mauve-row td { background-color: #f3e5f5 !important; color: black !important; }'
-    '.k2-table tr:hover td { background-color: #aec6cf !important; color: black !important; }'
-    '.k2-table thead th { background-color: #000 !important; color: white !important; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal !important; line-height: 1.2 !important; vertical-align: bottom !important; }'
-    '.left-head { text-align: left !important; padding-left: 10px !important; }'
-    '.left-text { text-align: left !important; padding-left: 10px !important; }'
-    '.center-text { text-align: center !important; }'
-    '.pos-val { color: #2e7d32 !important; font-weight: bold !important; }'
-    '.neg-val { color: #d32f2f !important; font-weight: bold !important; }'
-'</style>', unsafe_allow_html=True)
+    .k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }
+    .k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+    .k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
+    .k2-table td.r2 { background-color: #fbc02d !important; color: black !important; font-weight: bold !important; }
+    .k2-table td.r3 { background-color: #1976d2 !important; color: white !important; font-weight: bold !important; }
+    .mauve-row td { background-color: #f3e5f5 !important; color: black !important; }
+    .k2-table tr:hover td { background-color: #aec6cf !important; color: black !important; }
+    .k2-table thead th { background-color: #000 !important; color: white !important; text-transform: uppercase; letter-spacing: 0.5px; white-space: normal !important; line-height: 1.2 !important; vertical-align: bottom !important; }
+    .left-head { text-align: left !important; padding-left: 10px !important; }
+    .left-text { text-align: left !important; padding-left: 10px !important; }
+    .center-text { text-align: center !important; }
+    .pos-val { color: #2e7d32 !important; font-weight: bold !important; }
+    .neg-val { color: #d32f2f !important; font-weight: bold !important; }
+</style>
+""", unsafe_allow_html=True)
+
 # --- 5. EXECUTION & HEADER ---
 model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
 df_today = load_daily_data(model, feats, shadow_model, shadow_feats)
