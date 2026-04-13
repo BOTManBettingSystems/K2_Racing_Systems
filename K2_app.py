@@ -1136,15 +1136,12 @@ else:
                                 with open("K2_user_systems.json", "r") as f: saved_dict = json.load(f)
                                 if saved_dict:
                                     for s_key, s_data in list(saved_dict.items()):
-                                        # Changed nested expander to a bordered container
-                                        with st.container(border=True): 
-                                            st.markdown(f"**🔍 {s_key}**")
-                                            cc1, cc2 = st.columns([4, 1])
-                                            with cc1: st.json(s_data)
-                                            with cc2: 
-                                                if st.button("Load 📥", key=f"load_pub_{s_key}", use_container_width=True):
-                                                    load_sys_to_ui(s_data)
-                                                    st.rerun()
+                                        # Use a popover instead of an expander
+                                        with st.popover(f"🔍 {s_key}", use_container_width=True):
+                                            st.json(s_data)
+                                            if st.button("Load 📥", key=f"load_pub_{s_key}", use_container_width=True):
+                                                load_sys_to_ui(s_data)
+                                                st.rerun()
                                 else: st.write("No systems currently active.")
                             except Exception as e: st.error(f"Error reading public file: {e}")
                 
@@ -1155,15 +1152,12 @@ else:
                                 with open("K2_admin_systems.json", "r") as f: admin_dict = json.load(f)
                                 if admin_dict:
                                     for s_key, s_data in list(admin_dict.items()):
-                                        # Changed nested expander to a bordered container
-                                        with st.container(border=True):
-                                            st.markdown(f"**🔍 {s_key}**")
-                                            cc1, cc2 = st.columns([4, 1])
-                                            with cc1: st.json(s_data)
-                                            with cc2: 
-                                                if st.button("Load 📥", key=f"load_sec_{s_key}", use_container_width=True):
-                                                    load_sys_to_ui(s_data)
-                                                    st.rerun()
+                                        # Use a popover instead of an expander
+                                        with st.popover(f"🔍 {s_key}", use_container_width=True):
+                                            st.json(s_data)
+                                            if st.button("Load 📥", key=f"load_sec_{s_key}", use_container_width=True):
+                                                load_sys_to_ui(s_data)
+                                                st.rerun()
                                 else: st.write("No admin systems currently active.")
                             except Exception as e: st.error(f"Error reading admin file: {e}")
                 st.markdown("---")
