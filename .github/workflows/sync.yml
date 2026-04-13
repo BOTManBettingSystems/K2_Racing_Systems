@@ -19,4 +19,5 @@ jobs:
       - name: Upload to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: huggingface-cli upload BOTManBettingSystems/K2_Racing_Systems . . --repo-type space
+        # Updated command below from 'huggingface-cli' to just 'hf'
+        run: hf upload BOTManBettingSystems/K2_Racing_Systems . . --repo-type space
