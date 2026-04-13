@@ -49,9 +49,9 @@ def log_login(role):
 
 def check_password():
     def password_entered():
-        if "passwords" in st.secrets:
-            admin_p = st.secrets["passwords"]["admin"]
-            guest_p = st.secrets["passwords"]["guest"]
+        # Updated to check Hugging Face environment variables safely
+        admin_p = os.environ.get("ADMIN_PASS", st.secrets.get("passwords", {}).get("admin", "fallback1"))
+        guest_p = os.environ.get("GUEST_PASS", st.secrets.get("passwords", {}).get("guest", "fallback2"))
             
             entered = st.session_state.get("password_input", "")
             if entered in [admin_p, guest_p]:
