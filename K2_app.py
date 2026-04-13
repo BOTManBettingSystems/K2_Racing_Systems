@@ -1128,7 +1128,6 @@ else:
                             }
                             st.code(f'"{new_sys_name}": {json.dumps(sys_data, indent=4)}', language="json")
                         else: st.error("Please enter a name for the system to generate code.")
-                
                 c_pub, c_sec = st.columns(2)
                 with c_pub:
                     if os.path.exists("K2_user_systems.json"):
@@ -1137,7 +1136,9 @@ else:
                                 with open("K2_user_systems.json", "r") as f: saved_dict = json.load(f)
                                 if saved_dict:
                                     for s_key, s_data in list(saved_dict.items()):
-                                        with st.expander(f"🔍 {s_key}"): 
+                                        # Changed nested expander to a bordered container
+                                        with st.container(border=True): 
+                                            st.markdown(f"**🔍 {s_key}**")
                                             cc1, cc2 = st.columns([4, 1])
                                             with cc1: st.json(s_data)
                                             with cc2: 
@@ -1154,7 +1155,9 @@ else:
                                 with open("K2_admin_systems.json", "r") as f: admin_dict = json.load(f)
                                 if admin_dict:
                                     for s_key, s_data in list(admin_dict.items()):
-                                        with st.expander(f"🔍 {s_key}"):
+                                        # Changed nested expander to a bordered container
+                                        with st.container(border=True):
+                                            st.markdown(f"**🔍 {s_key}**")
                                             cc1, cc2 = st.columns([4, 1])
                                             with cc1: st.json(s_data)
                                             with cc2: 
