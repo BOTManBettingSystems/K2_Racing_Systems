@@ -93,24 +93,22 @@ def load_all_data():
                 df_all = pd.read_csv(f)
                 
         df_all.columns = df_all.columns.str.strip()
-
-        # --- MEMORY OPTIMIZATION BLOCK ---
+        
+        # --- SAFE MEMORY OPTIMIZATION BLOCK ---
         def optimize_memory(df):
-            for col in df.columns:
-                col_type = df[col].dtype
-                if col_type != object:
-                    c_min = df[col].min()
-                    c_max = df[col].max()
-                    if str(col_type)[:3] == 'int':
-                        if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max: df[col] = df[col].astype(np.int8)
-                        elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max: df[col] = df[col].astype(np.int16)
-                        elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max: df[col] = df[col].astype(np.int32)
-                    else:
-                        if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max: df[col] = df[col].astype(np.float32)
-                else:
-                    # Categorize repeating text strings (Excluding 'Horse' to prevent new-entry merge crashes)
-                    if col in ['Course', 'Race Type', 'H/Cap', 'Price Bracket']:
-                        df[col] = df[col].astype('category')
+            # Safely shrink floats (decimals)
+            for col in df.select_dtypes(include=['float64']).columns:
+                df[col] = pd.to_numeric(df[col], downcast='float')
+            
+            # Safely shrink integers (whole numbers)
+            for col in df.select_dtypes(include=['int64']).columns:
+                df[col] = pd.to_numeric(df[col], downcast='integer')
+                
+            # Categorize repeating text strings
+            for col in ['Course', 'Race Type', 'H/Cap', 'Price Bracket']:
+                if col in df.columns:
+                    df[col] = df[col].astype('category')
+                    
             return df
         
         df_all = optimize_memory(df_all)
