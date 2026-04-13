@@ -12,7 +12,11 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
-      - name: Push to hub
+          
+      - name: Install Hugging Face CLI
+        run: pip install -U "huggingface_hub[cli]"
+        
+      - name: Upload to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://BOTManBettingSystems:$HF_TOKEN@huggingface.co/spaces/BOTManBettingSystems/K2_Racing_Systems main
+        run: huggingface-cli upload BOTManBettingSystems/K2_Racing_Systems . . --repo-type space
