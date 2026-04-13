@@ -46,25 +46,25 @@ def log_login(role):
         if not file_exists:
             f.write("Timestamp,Role,IP_Address\n")
         f.write(f"{timestamp},{role},{client_ip}\n")
-
+        
 def check_password():
     def password_entered():
-        # Updated to check Hugging Face environment variables safely
+        # Updated to check Hugging Face environment variables safely, with Streamlit fallback
         admin_p = os.environ.get("ADMIN_PASS", st.secrets.get("passwords", {}).get("admin", "fallback1"))
         guest_p = os.environ.get("GUEST_PASS", st.secrets.get("passwords", {}).get("guest", "fallback2"))
+        
+        entered = st.session_state.get("password_input", "")
+        if entered in [admin_p, guest_p]:
+            st.session_state["password_correct"] = True
+            st.session_state["is_admin"] = (entered == admin_p)
             
-            entered = st.session_state.get("password_input", "")
-            if entered in [admin_p, guest_p]:
-                st.session_state["password_correct"] = True
-                st.session_state["is_admin"] = (entered == admin_p)
-                
-                # --- LOG THE SUCCESSFUL LOGIN ---
-                role = "Admin" if st.session_state["is_admin"] else "Guest"
-                log_login(role)
-                
-                if "password_input" in st.session_state:
-                    del st.session_state["password_input"]
-                return
+            # --- LOG THE SUCCESSFUL LOGIN ---
+            role = "Admin" if st.session_state["is_admin"] else "Guest"
+            log_login(role)
+            
+            if "password_input" in st.session_state:
+                del st.session_state["password_input"]
+            return
         st.session_state["password_correct"] = False
             
     if "password_correct" not in st.session_state:
