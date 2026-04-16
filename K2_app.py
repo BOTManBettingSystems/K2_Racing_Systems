@@ -10,6 +10,9 @@ import json
 from datetime import datetime, timedelta
 import extra_streamlit_components as stx
 
+# ---  PAGE CONFIG ---
+st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="expanded")
+
 # --- Initialize Cookie Manager (Must be at the top level) ---
 cookie_manager = stx.CookieManager(key="k2_cookie_manager")
 
@@ -100,9 +103,6 @@ if not check_password(): st.stop()
 
 if "show_admin_insights" not in st.session_state:
     st.session_state.show_admin_insights = False
-
-# --- 2. PAGE CONFIG ---
-st.set_page_config(page_title="K² Racing Systems", page_icon="K2logo.png", layout="wide", initial_sidebar_state="expanded")
 
 # --- 3. DATA ENGINE ---
 @st.cache_resource(show_spinner=False)
