@@ -7,7 +7,15 @@ import os
 import zipfile
 import gc 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import extra_streamlit_components as stx
+
+# --- Initialize Cookie Manager (Must be at the top level) ---
+@st.cache_resource
+def get_cookie_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_cookie_manager()
 
 # --- 1. ACCESS CONTROL & LOGGING ---
 def log_performance(action_name):
@@ -48,11 +56,22 @@ def log_login(role):
         f.write(f"{timestamp},{role},{client_ip}\n")
         
 def check_password():
+    """Returns `True` if the user had a valid cookie or entered a correct password."""
+    # 1. Check if a valid 30-day cookie already exists
+    auth_cookie = cookie_manager.get(cookie="k2_auth")
+    
+    # Grab passwords from Hugging Face environment (with a local secrets fallback)
+    admin_p = os.environ.get("ADMIN_PASS", st.secrets.get("passwords", {}).get("admin", "fallback1"))
+    guest_p = os.environ.get("GUEST_PASS", st.secrets.get("passwords", {}).get("guest", "fallback2"))
+
+    # 2. If the cookie says they are logged in, bypass the screen instantly
+    if auth_cookie in ["admin_active", "guest_active"]:
+        st.session_state["password_correct"] = True
+        st.session_state["is_admin"] = (auth_cookie == "admin_active")
+        return True
+
+    # 3. The logic that runs when the user hits "Enter" on the password box
     def password_entered():
-        # Updated to check Hugging Face environment variables safely, with Streamlit fallback
-        admin_p = os.environ.get("ADMIN_PASS", st.secrets.get("passwords", {}).get("admin", "fallback1"))
-        guest_p = os.environ.get("GUEST_PASS", st.secrets.get("passwords", {}).get("guest", "fallback2"))
-        
         entered = st.session_state.get("password_input", "")
         if entered in [admin_p, guest_p]:
             st.session_state["password_correct"] = True
@@ -62,15 +81,23 @@ def check_password():
             role = "Admin" if st.session_state["is_admin"] else "Guest"
             log_login(role)
             
+            # --- SET THE 30-DAY COOKIE ---
+            cookie_val = "admin_active" if st.session_state["is_admin"] else "guest_active"
+            expire_date = datetime.now() + timedelta(days=30)
+            cookie_manager.set("k2_auth", cookie_val, expires_at=expire_date)
+            
+            # Clear the input box from memory for security
             if "password_input" in st.session_state:
                 del st.session_state["password_input"]
-            return
-        st.session_state["password_correct"] = False
-            
+        else:
+            st.session_state["password_correct"] = False
+
+    # 4. If no valid cookie and no correct password yet, show the login screen
     if "password_correct" not in st.session_state:
         st.markdown("<h2 style='text-align: center; color: #002147;'>K² Racing Systems</h2>", unsafe_allow_html=True)
         st.text_input("Enter Password", type="password", on_change=password_entered, key="password_input")
         return False
+        
     return st.session_state.get("password_correct", False)
 
 if not check_password(): st.stop() 
