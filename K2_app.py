@@ -382,8 +382,11 @@ def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_
 # -------------------------------------------------------------------------
 # VIEW CONTROLLER
 # -------------------------------------------------------------------------
+
+# =========================================================================
+# 🛡️ ADMIN ONLY: INSIGHTS VIEW
+# =========================================================================
 if st.session_state.get("is_admin") and st.session_state.get("show_admin_insights"):
-    # --- ADMIN INSIGHTS VIEW ---
     st.header("🔍 Admin Data Insights (Multi-Factor Analysis)")
     st.markdown("Combine multiple data elements to discover highly profitable 'Golden Rules' hidden in your historical data.")
     
@@ -520,6 +523,9 @@ else:
         ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis"]
     )
 
+    # =========================================================================
+    # 📅 PAGE 1: DAILY PREDICTIONS
+    # =========================================================================
     if page == "📅 Daily Predictions":
         st.header("📅 Daily Top 2 Predictions")
         
@@ -597,6 +603,10 @@ else:
                             else: st.session_state.expanded_races.add(race_id)
                             st.rerun()
 
+
+    # =========================================================================
+    # 📊 PAGE 2: AI TOP 2 RESULTS
+    # =========================================================================
     elif page == "📊 AI Top 2 Results":
         if "perf_mode" not in st.session_state: st.session_state.perf_mode = "Live"
         st.markdown('<div class="filter-area">', unsafe_allow_html=True)
@@ -689,6 +699,10 @@ else:
                     top_tracks = pd.DataFrame(track_stats).sort_values('ROI%', ascending=False).head(5)
                     st.table(top_tracks.set_index('Course'))
 
+
+    # =========================================================================
+    # 🧠 PAGE 3: GENERAL SYSTEMS
+    # =========================================================================
     elif page == "🧠 General Systems":
         st.header("🧠 General Systems")
         
@@ -960,6 +974,9 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
+    # =========================================================================
+    # 🛠️ PAGE 4: SYSTEM BUILDER
+    # =========================================================================
     elif page == "🛠️ System Builder":
         if "form_reset_counter" not in st.session_state:
             st.session_state.form_reset_counter = 0
@@ -1277,6 +1294,10 @@ else:
                     ]
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
+                    
+                    # --- ADD HISTORIC CSV DATA HERE ---
+                    historic_csv_out = df_filtered.to_csv(index=False).encode('utf-8') if not df_filtered.empty else None
+                    
                     val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP", "NOT AI Value vs BSP", "NOT My Value vs BSP"]
 
                     if df_today is not None and not df_today.empty:
@@ -1350,7 +1371,15 @@ else:
                         html_table_out += f"<tr><td class='left-align'>{row['Race Type']}</td><td class='left-align'>{row['H/Cap']}</td><td class='left-align'>{row['Price Bracket']}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
                     html_table_out += "</tbody></table></div>"
 
-                    st.session_state['tab4_results'] = {'kpis': kpis, 'breakdown_html': html_table_out, 'qual_html': qual_html_out, 'csv': csv_data_out, 'timestamp': timestamp_out, 'val_warn': val_bsp_warning}
+                    st.session_state['tab4_results'] = {
+                        'kpis': kpis, 
+                        'breakdown_html': html_table_out, 
+                        'qual_html': qual_html_out, 
+                        'csv': csv_data_out, 
+                        'historic_csv': historic_csv_out,
+                        'timestamp': timestamp_out, 
+                        'val_warn': val_bsp_warning
+                    }
                 else: st.session_state['tab4_results'] = "empty"
 
             if 'tab4_results' in st.session_state:
@@ -1367,6 +1396,18 @@ else:
                     kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
                     kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
 
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    # --- THE NEW HISTORIC CSV BUTTON ---
+                    if res.get('historic_csv'):
+                        st.download_button(
+                            label="📥 Download All Historic Selections (CSV)", 
+                            data=res['historic_csv'], 
+                            file_name=f"K2_Historic_System_Selections_{res['timestamp']}.csv", 
+                            mime="text/csv", 
+                            use_container_width=True
+                        )
+
                     if res['qual_html'] != "":
                         st.markdown("<br>", unsafe_allow_html=True)
                         with st.expander("🔍 View Today's Qualifiers for this System", expanded=False):
@@ -1382,6 +1423,9 @@ else:
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
 
+    # =========================================================================
+    # 🏇 PAGE 5: RACE ANALYSIS
+    # =========================================================================
     elif page == "🏇 Race Analysis":
         st.header("🏇 Race Analysis")
         
