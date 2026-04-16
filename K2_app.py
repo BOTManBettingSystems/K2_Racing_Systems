@@ -379,6 +379,17 @@ def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_
     return res_data
 
 
+# --- CSV CLEANER HELPER ---
+def clean_csv_df(df_in):
+    """Rounds all float columns to 2 decimal places before CSV export, excluding probability columns."""
+    if df_in is None or df_in.empty: return df_in
+    df_out = df_in.copy()
+    # Find all decimal columns but exclude any that contain 'Prob' in their name
+    float_cols = [c for c in df_out.select_dtypes(include=['float', 'float32', 'float64']).columns if 'Prob' not in c]
+    df_out[float_cols] = df_out[float_cols].round(2)
+    return df_out
+
+
 # -------------------------------------------------------------------------
 # VIEW CONTROLLER
 # -------------------------------------------------------------------------
@@ -548,6 +559,9 @@ else:
                 ideal_csv_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'No. of Top']
                 existing_csv_cols = [c for c in ideal_csv_cols if c in df_p.columns]
                 csv_out = df_p[df_p['Rank'] <= 2][existing_csv_cols].copy()
+                
+                # --- ROUND NUMBERS BEFORE EXPORT ---
+                csv_out = clean_csv_df(csv_out)
                 
                 timestamp = datetime.now().strftime('%d%m%y_%H%M%S')
                 file_name = f"K2_AIPredictions_{timestamp}.csv"
@@ -828,7 +842,10 @@ else:
                             palette = ["#e8f4f8", "#f8e8e8", "#e8f8e8", "#f8f4e8", "#f4e8f8", "#e8f8f8"]
                             sys_color_map = {sys: palette[i % len(palette)] for i, sys in enumerate(unique_systems)}
 
-                            csv_data = final_df.to_csv(index=False).encode('utf-8')
+                            # --- ROUND NUMBERS BEFORE EXPORT ---
+                            clean_final_df = clean_csv_df(final_df)
+                            csv_data = clean_final_df.to_csv(index=False).encode('utf-8')
+                            
                             timestamp = datetime.now().strftime('%d%m%y_%H%M%S')
                             dl_label = "📥 Download Admin Picks to CSV" if pool_choice != "Public" else "📥 Download General Picks to CSV"
                             st.download_button(dl_label, csv_data, f"K2_{pool_choice}_Systems_{timestamp}.csv", "text/csv", key="dl_smart")
@@ -1295,8 +1312,11 @@ else:
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
                     
-                    # --- ADD HISTORIC CSV DATA HERE ---
-                    historic_csv_out = df_filtered.to_csv(index=False).encode('utf-8') if not df_filtered.empty else None
+                    # --- ADD HISTORIC CSV DATA HERE (WITH NUMBER CLEANING) ---
+                    if not df_filtered.empty:
+                        historic_csv_out = clean_csv_df(df_filtered).to_csv(index=False).encode('utf-8') 
+                    else:
+                        historic_csv_out = None
                     
                     val_bsp_warning = value_filter in ["Value vs BSP", "AI Value vs BSP", "My Value vs BSP", "NOT AI Value vs BSP", "NOT My Value vs BSP"]
 
@@ -1357,7 +1377,11 @@ else:
                         if not t_filtered.empty:
                             t_filtered = t_filtered.sort_values(by=['Time', 'Course'])
                             dl_cols = [c for c in ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'Pure Rank'] if c in t_filtered.columns]
-                            csv_data_out = t_filtered[dl_cols].to_csv(index=False).encode('utf-8')
+                            
+                            # --- ROUND NUMBERS BEFORE EXPORT ---
+                            clean_t_filtered = clean_csv_df(t_filtered[dl_cols])
+                            csv_data_out = clean_t_filtered.to_csv(index=False).encode('utf-8')
+                            
                             timestamp_out = datetime.now().strftime('%d%m%y_%H%M%S')
                             
                             qual_html_out = '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 700px;"><thead><tr style="background-color: #2e7d32; color: white;"><th class="center-text">Date</th><th class="center-text">Time</th><th class="left-align">Course</th><th class="left-align">Horse</th><th class="center-text">7:30AM Price</th><th class="center-text">Pure Rank</th></tr></thead><tbody>'
@@ -1398,7 +1422,6 @@ else:
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     
-                    # --- THE NEW HISTORIC CSV BUTTON ---
                     if res.get('historic_csv'):
                         st.download_button(
                             label="📥 Download All Historic Selections (CSV)", 
