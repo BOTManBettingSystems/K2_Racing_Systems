@@ -11,11 +11,7 @@ from datetime import datetime, timedelta
 import extra_streamlit_components as stx
 
 # --- Initialize Cookie Manager (Must be at the top level) ---
-@st.cache_resource
-def get_cookie_manager():
-    return stx.CookieManager()
-
-cookie_manager = get_cookie_manager()
+cookie_manager = stx.CookieManager(key="k2_cookie_manager")
 
 # --- 1. ACCESS CONTROL & LOGGING ---
 def log_performance(action_name):
