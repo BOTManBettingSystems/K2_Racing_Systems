@@ -6,3 +6,4 @@ pandas
 streamlit
 odfpy
 psutil
+extra-streamlit-components
