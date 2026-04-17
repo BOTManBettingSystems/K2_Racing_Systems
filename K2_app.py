@@ -991,7 +991,7 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
-    # =========================================================================
+  # =========================================================================
     # 🛠️ PAGE 4: SYSTEM BUILDER
     # =========================================================================
     elif page == "🛠️ System Builder":
@@ -1034,7 +1034,8 @@ else:
                 'ui_ai_rank_filter': "Any", 'ui_sex': sex_opts, 'ui_value_filter': "Off",
                 'ui_irish_f': "Any", 'ui_age_range': (1, 20),
                 'ui_comb_f': "Any", 'ui_comp_f': "Any", 'ui_speed_f': "Any", 'ui_race_f': "Any", 'ui_primary_f': "Any",
-                'ui_msai_f': "Any", 'ui_prb_f': "Any", 'ui_tprb_f': "Any", 'ui_jprb_f': "Any", 'ui_form_f': "Any", 'ui_pure_f': "Any"
+                'ui_msai_f': "Any", 'ui_prb_f': "Any", 'ui_tprb_f': "Any", 'ui_jprb_f': "Any", 'ui_form_f': "Any", 'ui_pure_f': "Any",
+                'ui_group_cols': ['Race Type', 'H/Cap', 'Price Bracket']
             }
             
             if st.session_state.get('force_reset', False):
@@ -1168,6 +1169,18 @@ else:
                     r3_c1, r3_c2, r3_c3, r3_c4, r3_c5 = st.columns(5)
                     with r3_c1: pure_f = st.selectbox("Pure Rank", rank_opts, index=get_r_idx('ui_pure_f'))
                 
+                st.markdown("---")
+                st.markdown("### 📊 Dynamic Table Grouping")
+                groupable_cols = ['Race Type', 'H/Cap', 'Price Bracket', 'Course', 'No. of Rnrs', 'Class', 'Class Move', 'Sex', 'Age', 'Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'Primary Rank', 'MSAI Rank', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'Form Rank', 'Pure Rank', 'Irish?']
+                groupable_cols = [c for c in groupable_cols if c in b_df.columns]
+                
+                ui_group_cols = st.multiselect(
+                    "Select up to 3 factors to group the breakdown table by:", 
+                    options=groupable_cols, 
+                    default=st.session_state.get('ui_group_cols', ['Race Type', 'H/Cap', 'Price Bracket']),
+                    max_selections=3
+                )
+                
                 submit_button = st.form_submit_button(label="🚀 Process Data")
 
             if st.session_state.get("is_admin"):
@@ -1193,7 +1206,6 @@ else:
                                 with open("K2_user_systems.json", "r") as f: saved_dict = json.load(f)
                                 if saved_dict:
                                     for s_key, s_data in list(saved_dict.items()):
-                                        # Use a popover instead of an expander
                                         with st.popover(f"🔍 {s_key}", use_container_width=True):
                                             st.json(s_data)
                                             if st.button("Load 📥", key=f"load_pub_{s_key}", use_container_width=True):
@@ -1209,7 +1221,6 @@ else:
                                 with open("K2_admin_systems.json", "r") as f: admin_dict = json.load(f)
                                 if admin_dict:
                                     for s_key, s_data in list(admin_dict.items()):
-                                        # Use a popover instead of an expander
                                         with st.popover(f"🔍 {s_key}", use_container_width=True):
                                             st.json(s_data)
                                             if st.button("Load 📥", key=f"load_sec_{s_key}", use_container_width=True):
@@ -1220,6 +1231,7 @@ else:
                 st.markdown("---")
 
             if submit_button:
+                st.session_state['ui_group_cols'] = ui_group_cols
                 st.success("✅ System recalculated instantly!")
 
                 mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap))
@@ -1289,7 +1301,11 @@ else:
                 df_filtered = b_df[mask].copy()
 
                 if not df_filtered.empty:
-                    breakdown = df_filtered.groupby(['Race Type', 'H/Cap', 'Price Bracket'], observed=False).agg(
+                    # --- DYNAMIC GROUPING LOGIC ---
+                    actual_grp_cols = [c for c in ui_group_cols if c in df_filtered.columns]
+                    if not actual_grp_cols: actual_grp_cols = ['Race Type']
+
+                    breakdown = df_filtered.groupby(actual_grp_cols, observed=False).agg(
                         Bets=('Horse', 'count'), Wins=('Is_Win', 'sum'), Win_Profit=('Win P/L <2%', 'sum'), Places=('Is_Place', 'sum'), Place_Profit=('Place P/L <2%', 'sum')
                     ).reset_index()
                     
@@ -1298,7 +1314,7 @@ else:
                     breakdown['Place SR (%)'] = (breakdown['Places'] / breakdown['Bets'] * 100).fillna(0)
                     breakdown['Win ROI (%)'] = (breakdown['Win_Profit'] / breakdown['Bets'] * 100).fillna(0)
                     breakdown['Total P/L'] = breakdown['Win_Profit'] + breakdown['Place_Profit']
-                    breakdown = breakdown.sort_values(by=['Race Type', 'H/Cap', 'Price Bracket'])
+                    breakdown = breakdown.sort_values(by=actual_grp_cols)
 
                     total_bets_for_roi = breakdown['Bets'].sum()
                     total_pl_for_roi = breakdown['Total P/L'].sum()
@@ -1312,7 +1328,6 @@ else:
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
                     
-                    # --- ADD HISTORIC CSV DATA HERE (WITH NUMBER CLEANING) ---
                     if not df_filtered.empty:
                         historic_csv_out = clean_csv_df(df_filtered).to_csv(index=False).encode('utf-8') 
                     else:
@@ -1378,7 +1393,6 @@ else:
                             t_filtered = t_filtered.sort_values(by=['Time', 'Course'])
                             dl_cols = [c for c in ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'Pure Rank'] if c in t_filtered.columns]
                             
-                            # --- ROUND NUMBERS BEFORE EXPORT ---
                             clean_t_filtered = clean_csv_df(t_filtered[dl_cols])
                             csv_data_out = clean_t_filtered.to_csv(index=False).encode('utf-8')
                             
@@ -1388,11 +1402,23 @@ else:
                             for _, q_row in t_filtered.iterrows(): qual_html_out += f"<tr><td class='center-text'>{q_row['Date']}</td><td class='center-text'>{q_row['Time']}</td><td class='left-align'>{q_row['Course']}</td><td class='left-align'><b>{q_row['Horse']}</b></td><td class='center-text'>{q_row['7:30AM Price']:.2f}</td><td class='center-text'><b>{int(q_row.get('Pure Rank', 0))}</b></td></tr>"
                             qual_html_out += "</tbody></table></div>"
 
+                    # --- DYNAMIC HTML TABLE GENERATION ---
                     html_table_out = '<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 4px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style>'
-                    html_table_out += '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 900px;"><thead><tr style="background-color: #f0f2f6; color: black;"><th class="left-align">Race Type</th><th class="left-align">H/Cap</th><th class="left-align">Price Bracket</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>'
+                    html_table_out += '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 900px;"><thead><tr style="background-color: #f0f2f6; color: black;">'
+                    
+                    for col in actual_grp_cols:
+                        html_table_out += f'<th class="left-align">{col}</th>'
+                        
+                    html_table_out += '<th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>'
+                    
                     for _, row in breakdown.iterrows(): 
                         t_col = "#2e7d32" if row['Total P/L'] >= 0 else "#d32f2f"
-                        html_table_out += f"<tr><td class='left-align'>{row['Race Type']}</td><td class='left-align'>{row['H/Cap']}</td><td class='left-align'>{row['Price Bracket']}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
+                        html_table_out += "<tr>"
+                        
+                        for col in actual_grp_cols:
+                            html_table_out += f"<td class='left-align'>{row[col]}</td>"
+                            
+                        html_table_out += f"<td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
                     html_table_out += "</tbody></table></div>"
 
                     st.session_state['tab4_results'] = {
@@ -1445,7 +1471,6 @@ else:
 
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
-
     # =========================================================================
     # 🏇 PAGE 5: RACE ANALYSIS
     # =========================================================================
