@@ -991,7 +991,7 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
-  # =========================================================================
+# =========================================================================
     # 🛠️ PAGE 4: SYSTEM BUILDER
     # =========================================================================
     elif page == "🛠️ System Builder":
@@ -1174,6 +1174,9 @@ else:
                 groupable_cols = ['Race Type', 'H/Cap', 'Price Bracket', 'Course', 'No. of Rnrs', 'Class', 'Class Move', 'Sex', 'Age', 'Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'Primary Rank', 'MSAI Rank', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'Form Rank', 'Pure Rank', 'Irish?']
                 groupable_cols = [c for c in groupable_cols if c in b_df.columns]
                 
+                # --- NEW: Inject Month/Year to the very top of the options ---
+                groupable_cols.insert(0, 'Month/Year')
+                
                 ui_group_cols = st.multiselect(
                     "Select up to 3 factors to group the breakdown table by:", 
                     options=groupable_cols, 
@@ -1301,6 +1304,12 @@ else:
                 df_filtered = b_df[mask].copy()
 
                 if not df_filtered.empty:
+                    # --- NEW: Create Month/Year column on the fly for perfect chronological sorting ---
+                    if 'Date_DT' in df_filtered.columns:
+                        df_filtered['Month/Year'] = df_filtered['Date_DT'].dt.strftime('%Y-%m (%b)')
+                    else:
+                        df_filtered['Month/Year'] = "Unknown"
+
                     # --- DYNAMIC GROUPING LOGIC ---
                     actual_grp_cols = [c for c in ui_group_cols if c in df_filtered.columns]
                     if not actual_grp_cols: actual_grp_cols = ['Race Type']
