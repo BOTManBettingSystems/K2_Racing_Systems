@@ -1692,6 +1692,31 @@ else:
                     
                 html += "</tbody></table></div>"
                 st.markdown(html, unsafe_allow_html=True)
+
+                # --- ADMIN ONLY: AI X-RAY ---
+                if st.session_state.get("is_admin"):
+                    st.markdown("<br><hr>", unsafe_allow_html=True)
+                    with st.expander("🧠 Admin: AI Decision X-Ray (Under the Hood)", expanded=False):
+                        st.markdown("This shows the exact raw data the Machine Learning model used to calculate the probabilities for the Top 3 horses in this race.")
+                        
+                        # Grab the top 3 horses based on Pure Rank
+                        top_3_df = race_df.nsmallest(3, 'Pure Rank').copy()
+                        
+                        if not top_3_df.empty:
+                            # Define the exact features the Shadow Model uses
+                            xray_cols = ['Horse', 'Pure Rank'] + shadow_feats 
+                            
+                            # Filter to only the columns that exist in our dataframe
+                            valid_xray_cols = [c for c in xray_cols if c in top_3_df.columns]
+                            xray_df = top_3_df[valid_xray_cols].set_index('Horse').T
+                            
+                            # Clean up the formatting for display
+                            st.dataframe(
+                                xray_df.style.format("{:.3f}", na_rep="-"),
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("Not enough data to generate X-Ray.")
                 
             else:
                 st.markdown("### Race Selection")
