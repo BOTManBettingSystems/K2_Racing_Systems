@@ -1025,7 +1025,9 @@ else:
             ai_rank_opts = ["Any", "AI Rank 1 Only", "Top 2 Only", "NOT AI Rank 1", "NOT Top 3"]
             value_opts = ["Off", "AI Value vs 7:30AM", "AI Value vs BSP", "My Value vs 7:30AM", "My Value vs BSP", "NOT AI Value vs 7:30AM", "NOT AI Value vs BSP", "NOT My Value vs 7:30AM", "NOT My Value vs BSP"]
             irish_opts = ["Any", "Y (Yes)", "No (Blank)"]
-            rank_opts = ["Any", "Rank 1", "Top 2", "Top 3", "Not Top 3"]
+            
+            # --- UPDATED: Added Top 4 and Top 5 to the Advanced Rank Options ---
+            rank_opts = ["Any", "Rank 1", "Top 2", "Top 3", "Top 4", "Top 5", "Not Top 3"]
             
             defaults = {
                 'ui_months': all_months, 'ui_courses': [], 'ui_race_types': rt_opts, 'ui_hcap_types': hcap_opts,
@@ -1174,7 +1176,6 @@ else:
                 groupable_cols = ['Race Type', 'H/Cap', 'Price Bracket', 'Course', 'No. of Rnrs', 'Class', 'Class Move', 'Sex', 'Age', 'Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'Primary Rank', 'MSAI Rank', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'Form Rank', 'Pure Rank', 'Irish?']
                 groupable_cols = [c for c in groupable_cols if c in b_df.columns]
                 
-                # --- NEW: Inject Month/Year to the very top of the options ---
                 groupable_cols.insert(0, 'Month/Year')
                 
                 ui_group_cols = st.multiselect(
@@ -1280,12 +1281,15 @@ else:
                     if irish_f == "Y (Yes)": mask = mask & (t_irish_series == 'Y')
                     elif irish_f == "No (Blank)": mask = mask & (t_irish_series != 'Y')
 
+                # --- UPDATED: Processing logic for Top 4 and Top 5 ---
                 def apply_rank_filter(df_mask, current_df, col_name, setting):
                     if setting != "Any" and col_name in current_df.columns:
                         num_col = pd.to_numeric(current_df[col_name], errors='coerce')
                         if setting == "Rank 1": return df_mask & (num_col == 1)
                         elif setting == "Top 2": return df_mask & (num_col <= 2)
                         elif setting == "Top 3": return df_mask & (num_col <= 3)
+                        elif setting == "Top 4": return df_mask & (num_col <= 4)
+                        elif setting == "Top 5": return df_mask & (num_col <= 5)
                         elif setting == "Not Top 3": return df_mask & ((num_col > 3) | (num_col == 0))
                     return df_mask
 
@@ -1304,13 +1308,11 @@ else:
                 df_filtered = b_df[mask].copy()
 
                 if not df_filtered.empty:
-                    # --- NEW: Create Month/Year column on the fly for perfect chronological sorting ---
                     if 'Date_DT' in df_filtered.columns:
                         df_filtered['Month/Year'] = df_filtered['Date_DT'].dt.strftime('%Y-%m (%b)')
                     else:
                         df_filtered['Month/Year'] = "Unknown"
 
-                    # --- DYNAMIC GROUPING LOGIC ---
                     actual_grp_cols = [c for c in ui_group_cols if c in df_filtered.columns]
                     if not actual_grp_cols: actual_grp_cols = ['Race Type']
 
@@ -1411,7 +1413,6 @@ else:
                             for _, q_row in t_filtered.iterrows(): qual_html_out += f"<tr><td class='center-text'>{q_row['Date']}</td><td class='center-text'>{q_row['Time']}</td><td class='left-align'>{q_row['Course']}</td><td class='left-align'><b>{q_row['Horse']}</b></td><td class='center-text'>{q_row['7:30AM Price']:.2f}</td><td class='center-text'><b>{int(q_row.get('Pure Rank', 0))}</b></td></tr>"
                             qual_html_out += "</tbody></table></div>"
 
-                    # --- DYNAMIC HTML TABLE GENERATION ---
                     html_table_out = '<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 4px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style>'
                     html_table_out += '<div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 900px;"><thead><tr style="background-color: #f0f2f6; color: black;">'
                     
