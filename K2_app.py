@@ -198,20 +198,56 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         
     if not is_live_today:
         b_df = b_df[b_df.get('Fin Pos', 0) > 0].copy()
-    
-    b_df['ML_Prob'] = _model.predict_proba(b_df[feats].fillna(0))[:, 1]
-    
-    if _shadow_model is not None and shadow_feats is not None:
-        missing_shadow = [f for f in shadow_feats if f not in b_df.columns]
-        if not missing_shadow:
-            b_df['Shadow_Prob'] = _shadow_model.predict_proba(b_df[shadow_feats].fillna(0))[:, 1]
-            if is_live_today:
-                b_df['Pure Rank'] = b_df.groupby(['Time', 'Course'])['Shadow_Prob'].rank(ascending=False, method='min')
+
+    # --- 🛡️ PREDICTION VAULT INTEGRATION ---
+    vault_file = "K2_Prediction_Vault.csv"
+    vault_keys = ['Date_Key', 'Time', 'Course', 'Horse']
+
+    # Standardize keys for a bulletproof merge
+    if 'Time' in b_df.columns: b_df['Time'] = b_df['Time'].astype(str).str.split('.').str[0].str.strip()
+    if 'Course' in b_df.columns: b_df['Course'] = b_df['Course'].astype(str).str.strip().str.title()
+    if 'Horse' in b_df.columns: b_df['Horse'] = b_df['Horse'].astype(str).str.strip().str.title()
+
+    if os.path.exists(vault_file):
+        vault_df = pd.read_csv(vault_file)
+        vault_df['Date_Key'] = vault_df['Date_Key'].astype(str)
+        vault_df['Time'] = vault_df['Time'].astype(str).str.split('.').str[0].str.strip()
+        vault_df['Course'] = vault_df['Course'].astype(str).str.strip().str.title()
+        vault_df['Horse'] = vault_df['Horse'].astype(str).str.strip().str.title()
+        
+        # Merge existing frozen probabilities
+        b_df = pd.merge(b_df, vault_df[vault_keys + ['ML_Prob', 'Shadow_Prob']], on=vault_keys, how='left')
+        b_df['ML_Prob'] = pd.to_numeric(b_df['ML_Prob'], errors='coerce')
+        b_df['Shadow_Prob'] = pd.to_numeric(b_df['Shadow_Prob'], errors='coerce')
+    else:
+        b_df['ML_Prob'] = np.nan
+        b_df['Shadow_Prob'] = np.nan
+
+    # --- CALCULATE MISSING AI PREDICTIONS ON THE FLY ---
+    missing_mask = b_df['ML_Prob'].isna()
+    if missing_mask.any():
+        missing_df = b_df[missing_mask].copy()
+        b_df.loc[missing_mask, 'ML_Prob'] = _model.predict_proba(missing_df[feats].fillna(0))[:, 1]
+        
+        if _shadow_model is not None and shadow_feats is not None:
+            missing_shadow = [f for f in shadow_feats if f not in missing_df.columns]
+            if not missing_shadow:
+                b_df.loc[missing_mask, 'Shadow_Prob'] = _shadow_model.predict_proba(missing_df[shadow_feats].fillna(0))[:, 1]
             else:
-                b_df['Pure Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['Shadow_Prob'].rank(ascending=False, method='min')
+                b_df.loc[missing_mask, 'Shadow_Prob'] = 0
         else:
-            b_df['Pure Rank'] = 0
+            b_df.loc[missing_mask, 'Shadow_Prob'] = 0
             
+    # Failsafe if Shadow_Prob somehow wasn't created
+    if 'Shadow_Prob' not in b_df.columns:
+        b_df['Shadow_Prob'] = 0
+
+    # --- CALCULATE RANKS (ALWAYS LIVE SO THEY ADAPT TO NON-RUNNERS) ---
+    if is_live_today:
+        b_df['Pure Rank'] = b_df.groupby(['Time', 'Course'])['Shadow_Prob'].rank(ascending=False, method='min')
+    else:
+        b_df['Pure Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['Shadow_Prob'].rank(ascending=False, method='min')
+        
     b_df['7:30AM Price'] = pd.to_numeric(b_df.get('7:30AM Price', 0), errors='coerce')
     b_df['BSP'] = pd.to_numeric(b_df.get('BSP', 0), errors='coerce')
     b_df['Age'] = pd.to_numeric(b_df.get('Age', 0), errors='coerce').fillna(0)
@@ -241,8 +277,13 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     b_df['Primary Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['No. of Top'].transform(lambda x: x.rank(ascending=False, method='min'))
     b_df['Form Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['Total'].transform(lambda x: x.rank(ascending=False, method='min'))
     
-    b_df['Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].rank(ascending=False, method='min')
-    b_df['Rank2_Prob'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else 0)
+    if is_live_today:
+        b_df['Rank'] = b_df.groupby(['Time', 'Course'])['ML_Prob'].rank(ascending=False, method='min')
+        b_df['Rank2_Prob'] = b_df.groupby(['Time', 'Course'])['ML_Prob'].transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else 0)
+    else:
+        b_df['Rank'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].rank(ascending=False, method='min')
+        b_df['Rank2_Prob'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else 0)
+        
     b_df['Prob Gap'] = b_df['ML_Prob'] - b_df['Rank2_Prob']
     b_df['Value Price'] = 1 / b_df['ML_Prob']
     b_df['User Value'] = pd.to_numeric(b_df.get('Value', 0), errors='coerce')
@@ -1772,3 +1813,26 @@ else:
                     mime="text/csv", 
                     use_container_width=True
                 )
+# 3. Prediction Vault Generator
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🗄️ Prediction Vault")
+        st.sidebar.markdown("<span style='font-size:12px;'>Generate a master snapshot of all historical AI probabilities to lock in backtests against model drift.</span>", unsafe_allow_html=True)
+        
+        if df_all_prepped is not None and not df_all_prepped.empty:
+            vault_export_cols = ['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob']
+            existing_v_cols = [c for c in vault_export_cols if c in df_all_prepped.columns]
+            vault_export_df = df_all_prepped[existing_v_cols].copy()
+            
+            # Round probabilities to 6 decimals to save file size while perfectly maintaining sort ranks
+            for col in ['ML_Prob', 'Shadow_Prob']:
+                if col in vault_export_df.columns:
+                    vault_export_df[col] = vault_export_df[col].round(6)
+            
+            vault_csv = vault_export_df.to_csv(index=False).encode('utf-8')
+            st.sidebar.download_button(
+                label="📥 Download Master Vault CSV", 
+                data=vault_csv, 
+                file_name="K2_Prediction_Vault.csv", 
+                mime="text/csv", 
+                use_container_width=True
+            )
