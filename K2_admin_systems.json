@@ -150,5 +150,293 @@
         "Form Rank": "Any",
         "Pure Rank": "Rank 1"
     }
+},
+"Value Hurdles (plus Age)": {
+    "race_types": [
+        "Hurdle"
+    ],
+    "hcap_types": [
+        "N",
+        "Y"
+    ],
+    "price_min": 0.0,
+    "price_max": 1000.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+        "2-7",
+        "8-12",
+        "13-16",
+        ">16"
+    ],
+    "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "cm": [
+        "U",
+        "S",
+        "D"
+    ],
+    "sex": [
+        "c",
+        "f",
+        "g",
+        "m",
+        "r",
+        "x"
+    ],
+    "courses": [],
+    "ai_rank_filter": "Any",
+    "value_filter": "AI Value vs 7:30AM",
+    "irish": "Any",
+    "age_min": 3,
+    "age_max": 8,
+    "months": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ],
+    "ranks": {
+        "Comb. Rank": "Any",
+        "Comp. Rank": "Any",
+        "Speed Rank": "Any",
+        "Race Rank": "Any",
+        "Primary Rank": "Any",
+        "MSAI Rank": "Any",
+        "PRB Rank": "Any",
+        "Trainer PRB Rank": "Any",
+        "Jockey PRB Rank": "Any",
+        "Form Rank": "Any",
+        "Pure Rank": "Any"
+    }
+},
+"Value Chase (plus Age)": {
+    "race_types": [
+        "Chase"
+    ],
+    "hcap_types": [
+        "N",
+        "Y"
+    ],
+    "price_min": 0.0,
+    "price_max": 1000.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+        "2-7",
+        "8-12",
+        "13-16",
+        ">16"
+    ],
+    "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "cm": [
+        "U",
+        "S",
+        "D"
+    ],
+    "sex": [
+        "c",
+        "f",
+        "g",
+        "m",
+        "r",
+        "x"
+    ],
+    "courses": [],
+    "ai_rank_filter": "Any",
+    "value_filter": "AI Value vs 7:30AM",
+    "irish": "Any",
+    "age_min": 5,
+    "age_max": 12,
+    "months": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ],
+    "ranks": {
+        "Comb. Rank": "Any",
+        "Comp. Rank": "Any",
+        "Speed Rank": "Any",
+        "Race Rank": "Any",
+        "Primary Rank": "Any",
+        "MSAI Rank": "Any",
+        "PRB Rank": "Any",
+        "Trainer PRB Rank": "Any",
+        "Jockey PRB Rank": "Any",
+        "Form Rank": "Any",
+        "Pure Rank": "Any"
+    }
+},
+"Value A/W (plus Age)": {
+    "race_types": [
+        "A/W"
+    ],
+    "hcap_types": [
+        "N",
+        "Y"
+    ],
+    "price_min": 0.0,
+    "price_max": 1000.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+        "2-7",
+        "8-12",
+        "13-16",
+        ">16"
+    ],
+    "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "cm": [
+        "U",
+        "S",
+        "D"
+    ],
+    "sex": [
+        "c",
+        "f",
+        "g",
+        "m",
+        "r",
+        "x"
+    ],
+    "courses": [],
+    "ai_rank_filter": "Any",
+    "value_filter": "AI Value vs 7:30AM",
+    "irish": "Any",
+    "age_min": 1,
+    "age_max": 9,
+    "months": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ],
+    "ranks": {
+        "Comb. Rank": "Any",
+        "Comp. Rank": "Any",
+        "Speed Rank": "Any",
+        "Race Rank": "Any",
+        "Primary Rank": "Any",
+        "MSAI Rank": "Any",
+        "PRB Rank": "Any",
+        "Trainer PRB Rank": "Any",
+        "Jockey PRB Rank": "Any",
+        "Form Rank": "Any",
+        "Pure Rank": "Any"
+    }
+},
+"Value Turf": {
+    "race_types": [
+        "Turf"
+    ],
+    "hcap_types": [
+        "N",
+        "Y"
+    ],
+    "price_min": 0.0,
+    "price_max": 1000.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+        "2-7",
+        "8-12",
+        "13-16",
+        ">16"
+    ],
+    "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "cm": [
+        "U",
+        "S",
+        "D"
+    ],
+    "sex": [
+        "c",
+        "f",
+        "g",
+        "m",
+        "r",
+        "x"
+    ],
+    "courses": [],
+    "ai_rank_filter": "Any",
+    "value_filter": "AI Value vs 7:30AM",
+    "irish": "Any",
+    "age_min": 1,
+    "age_max": 20,
+    "months": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ],
+    "ranks": {
+        "Comb. Rank": "Any",
+        "Comp. Rank": "Any",
+        "Speed Rank": "Any",
+        "Race Rank": "Any",
+        "Primary Rank": "Any",
+        "MSAI Rank": "Any",
+        "PRB Rank": "Any",
+        "Trainer PRB Rank": "Any",
+        "Jockey PRB Rank": "Any",
+        "Form Rank": "Any",
+        "Pure Rank": "Any"
+    }
 }
 }
