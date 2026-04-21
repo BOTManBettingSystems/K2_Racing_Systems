@@ -1276,7 +1276,6 @@ else:
                 st.markdown("---")
 
             if submit_button:
-                st.session_state['ui_group_cols'] = ui_group_cols
                 st.success("✅ System recalculated instantly!")
 
                 mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap))
