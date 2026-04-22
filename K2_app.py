@@ -1590,7 +1590,7 @@ else:
                             A/E <span title='Actual vs Expected Wins: Values > 1.0 indicate the system beats market odds.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['a_e']:.2f}</b> &nbsp;|&nbsp;
                             Chi Score <span title='Statistical significance: > 3.84 means we are 95% confident this profit is due to a real edge, not luck.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['chi']:.2f}</b> &nbsp;|&nbsp;
                             Sortino <span title='Sortino Ratio: Measures profit relative to downside volatility. Higher is better (>1.0 is good).' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['sortino']:.2f}</b> &nbsp;|&nbsp;
-                            Ulcer <span title='Ulcer Index: Measures the depth AND duration of drawdowns. Lower means less financial pain.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['ulcer']:.2f}</b>
+                            Ulcer <span title='Ulcer Index (Flat Staking): 0-10 = Elite / Low Stress | 10-25 = Normal Variance | 25-50 = High Stress | 50+ = Unplayable Rollercoaster.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['ulcer']:.2f}</b>
                         </div>
                     """, unsafe_allow_html=True)
 
