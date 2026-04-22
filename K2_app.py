@@ -1434,13 +1434,15 @@ else:
                     else:
                         chi_score = 0.0
 
-                    # Sortino Ratio
+                    # Sortino Ratio (Corrected)
                     returns = df_chrono['Staked_PL']
                     mean_return = returns.mean() if not returns.empty else 0.0
-                    downside = returns[returns < 0]
-                    downside_dev = np.sqrt(np.mean(downside**2)) if not downside.empty else 0.0
+                    
+                    # Correct downside deviation: sum of squared negative returns divided by TOTAL bets
+                    downside_sq = np.where(returns < 0, returns**2, 0)
+                    downside_dev = np.sqrt(np.mean(downside_sq)) if len(returns) > 0 else 0.0
+                    
                     sortino = (mean_return / downside_dev) if downside_dev > 0 else (99.99 if mean_return > 0 else 0.0)
-
                     # Ulcer Index
                     ulcer_index = np.sqrt(np.mean(df_chrono['Drawdown']**2)) if not df_chrono['Drawdown'].empty else 0.0
 
