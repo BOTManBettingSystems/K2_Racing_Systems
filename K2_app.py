@@ -1066,8 +1066,6 @@ else:
             ai_rank_opts = ["Any", "AI Rank 1 Only", "Top 2 Only", "NOT AI Rank 1", "NOT Top 3"]
             value_opts = ["Off", "AI Value vs 7:30AM", "AI Value vs BSP", "My Value vs 7:30AM", "My Value vs BSP", "NOT AI Value vs 7:30AM", "NOT AI Value vs BSP", "NOT My Value vs 7:30AM", "NOT My Value vs BSP"]
             irish_opts = ["Any", "Y (Yes)", "No (Blank)"]
-            
-            # --- UPDATED: Added Top 4 and Top 5 to the Advanced Rank Options ---
             rank_opts = ["Any", "Rank 1", "Top 2", "Top 3", "Top 4", "Top 5", "Not Top 3"]
             
             defaults = {
@@ -1166,8 +1164,9 @@ else:
                     selected_hcap = st.multiselect("Handicap Status", hcap_opts, default=st.session_state.get('ui_hcap_types', hcap_opts))
                 with c2:
                     p_col1, p_col2 = st.columns(2)
-                    with p_col1: price_min = st.number_input("Min Price", 0.0, 1000.0, value=float(st.session_state.get('ui_price_min', 0.0)), step=0.5)
-                    with p_col2: price_max = st.number_input("Max Price", 0.0, 1000.0, value=float(st.session_state.get('ui_price_max', 1000.0)), step=0.5)
+                    # --- UPDATED: Clarified Price Inputs ---
+                    with p_col1: price_min = st.number_input("Min Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_min', 0.0)), step=0.5)
+                    with p_col2: price_max = st.number_input("Max Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_max', 1000.0)), step=0.5)
                     min_prob_gap = st.number_input("Minimum Prob Gap (%)", -100.0, 50.0, value=float(st.session_state.get('ui_prob_gap', -100.0)), step=0.5) / 100
                 with c3:
                     selected_rnrs = st.multiselect("No. of Runners", rnr_opts, default=st.session_state.get('ui_rnrs', rnr_opts))
@@ -1230,7 +1229,42 @@ else:
 
             if st.session_state.get("is_admin"):
                 st.markdown("---")
-                st.markdown("### ⚙️ Admin: Generate System Code (For GitHub)")
+                st.markdown("### ⚙️ Admin Tools")
+                
+                c_vault1, c_vault2 = st.columns([3, 1])
+                with c_vault1:
+                    st.markdown("#### 🗄️ Update Prediction Vault")
+                    st.markdown("<span style='font-size:12px;'>Append today's live predictions to the master history file.</span>", unsafe_allow_html=True)
+                with c_vault2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("Append Today to Vault 💾", use_container_width=True, type="primary"):
+                        try:
+                            if df_today is not None and not df_today.empty:
+                                vault_file = "K2_Prediction_Vault.csv"
+                                if os.path.exists(vault_file):
+                                    v_df = pd.read_csv(vault_file)
+                                    today_export = df_today[['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob']].copy()
+                                    today_export['Date_Key'] = today_export['Date_Key'].astype(str)
+                                    today_export['Time'] = today_export['Time'].astype(str).str.split('.').str[0].str.strip()
+                                    today_export['Course'] = today_export['Course'].astype(str).str.strip().str.title()
+                                    today_export['Horse'] = today_export['Horse'].astype(str).str.strip().str.title()
+                                    
+                                    for col in ['ML_Prob', 'Shadow_Prob']:
+                                        today_export[col] = pd.to_numeric(today_export[col], errors='coerce').round(6)
+                                        
+                                    updated_vault = pd.concat([v_df, today_export], ignore_index=True)
+                                    updated_vault = updated_vault.drop_duplicates(subset=['Date_Key', 'Time', 'Course', 'Horse'], keep='last')
+                                    updated_vault.to_csv(vault_file, index=False)
+                                    st.success(f"✅ Vault Updated! Added {len(today_export)} new predictions.")
+                                else:
+                                    st.error("⚠️ Vault file not found. Please download the Master Vault from the sidebar and upload it to GitHub first.")
+                            else:
+                                st.warning("No daily predictions found to append.")
+                        except Exception as e:
+                            st.error(f"Error updating vault: {e}")
+
+                st.markdown("---")
+                st.markdown("#### 💻 Generate System Code (For GitHub)")
                 c_name, c_btn = st.columns([3, 1])
                 with c_name: new_sys_name = st.text_input("System Name:", placeholder="e.g., A/W MSAI Value")
                 with c_btn:
@@ -1321,7 +1355,6 @@ else:
                     if irish_f == "Y (Yes)": mask = mask & (t_irish_series == 'Y')
                     elif irish_f == "No (Blank)": mask = mask & (t_irish_series != 'Y')
 
-                # --- UPDATED: Processing logic for Top 4 and Top 5 ---
                 def apply_rank_filter(df_mask, current_df, col_name, setting):
                     if setting != "Any" and col_name in current_df.columns:
                         num_col = pd.to_numeric(current_df[col_name], errors='coerce')
@@ -1370,11 +1403,30 @@ else:
                     total_bets_for_roi = breakdown['Bets'].sum()
                     total_pl_for_roi = breakdown['Total P/L'].sum()
                     total_roi_perc = (total_pl_for_roi / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
+                    
+                    # --- NEW: Calculate Drawdown and Longest Losing Run (Chronological) ---
+                    df_chrono = df_filtered.sort_values(by=['Date_DT', 'Time'])
+                    
+                    # 1. LLR Calculation
+                    df_chrono['Is_Loss'] = (df_chrono['Win P/L <2%'] < 0).astype(int)
+                    # Group consecutive losses
+                    loss_blocks = df_chrono['Is_Loss'] * (df_chrono['Is_Loss'].groupby((df_chrono['Is_Loss'] != df_chrono['Is_Loss'].shift()).cumsum()).cumcount() + 1)
+                    llr = loss_blocks.max() if not loss_blocks.empty else 0
+
+                    # 2. Max Drawdown Calculation
+                    # Standardize to 1 unit stakes for a pure percentage drawdown
+                    df_chrono['Staked_PL'] = np.where(df_chrono['Win P/L <2%'] > 0, df_chrono['Win P/L <2%'], -1)
+                    df_chrono['Bankroll'] = df_chrono['Staked_PL'].cumsum()
+                    df_chrono['Peak'] = df_chrono['Bankroll'].cummax()
+                    df_chrono['Drawdown'] = df_chrono['Bankroll'] - df_chrono['Peak']
+                    max_dd = abs(df_chrono['Drawdown'].min()) if not df_chrono['Drawdown'].empty else 0.0
 
                     kpis = [
                         total_bets_for_roi, breakdown['Wins'].sum(), breakdown['Places'].sum(), 
                         breakdown['Win_Profit'].sum(), breakdown['Place_Profit'].sum(),
-                        total_roi_perc
+                        total_roi_perc,
+                        # Pass the new advanced metrics
+                        llr, max_dd, (breakdown['Wins'].sum() / total_bets_for_roi * 100), (breakdown['Places'].sum() / total_bets_for_roi * 100)
                     ]
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
@@ -1495,6 +1547,17 @@ else:
                     kpi4.metric("Win P/L", f"£{kpis[3]:.2f}")
                     kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
                     kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
+                    
+                    # --- NEW: Advanced Metrics Sub-Row ---
+                    st.markdown(f"""
+                        <div style='background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 5px; font-size: 14px;'>
+                            <b>Advanced Metrics:</b> 
+                            Win S/R: <b>{kpis[8]:.1f}%</b> &nbsp;|&nbsp; 
+                            Place S/R: <b>{kpis[9]:.1f}%</b> &nbsp;|&nbsp; 
+                            Longest Losing Run (LLR): <b style='color:#d32f2f;'>{int(kpis[6])}</b> &nbsp;|&nbsp; 
+                            Max Drawdown: <b style='color:#d32f2f;'>£{kpis[7]:.2f}</b> <i>(At £1 stakes)</i>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                     st.markdown("<br>", unsafe_allow_html=True)
                     
