@@ -1164,7 +1164,6 @@ else:
                     selected_hcap = st.multiselect("Handicap Status", hcap_opts, default=st.session_state.get('ui_hcap_types', hcap_opts))
                 with c2:
                     p_col1, p_col2 = st.columns(2)
-                    # --- UPDATED: Clarified Price Inputs ---
                     with p_col1: price_min = st.number_input("Min Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_min', 0.0)), step=0.5)
                     with p_col2: price_max = st.number_input("Max Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_max', 1000.0)), step=0.5)
                     min_prob_gap = st.number_input("Minimum Prob Gap (%)", -100.0, 50.0, value=float(st.session_state.get('ui_prob_gap', -100.0)), step=0.5) / 100
@@ -1310,6 +1309,7 @@ else:
                 st.markdown("---")
 
             if submit_button:
+                st.session_state['ui_group_cols'] = ui_group_cols
                 st.success("✅ System recalculated instantly!")
 
                 mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap))
@@ -1404,30 +1404,59 @@ else:
                     total_pl_for_roi = breakdown['Total P/L'].sum()
                     total_roi_perc = (total_pl_for_roi / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
                     
-                    # --- NEW: Calculate Drawdown and Longest Losing Run (Chronological) ---
+                    # --- ADVANCED METRICS CALCULATION ---
                     df_chrono = df_filtered.sort_values(by=['Date_DT', 'Time'])
                     
-                    # 1. LLR Calculation
+                    # LLR & Drawdown
                     df_chrono['Is_Loss'] = (df_chrono['Win P/L <2%'] < 0).astype(int)
-                    # Group consecutive losses
                     loss_blocks = df_chrono['Is_Loss'] * (df_chrono['Is_Loss'].groupby((df_chrono['Is_Loss'] != df_chrono['Is_Loss'].shift()).cumsum()).cumcount() + 1)
                     llr = loss_blocks.max() if not loss_blocks.empty else 0
 
-                    # 2. Max Drawdown Calculation
-                    # Standardize to 1 unit stakes for a pure percentage drawdown
                     df_chrono['Staked_PL'] = np.where(df_chrono['Win P/L <2%'] > 0, df_chrono['Win P/L <2%'], -1)
                     df_chrono['Bankroll'] = df_chrono['Staked_PL'].cumsum()
                     df_chrono['Peak'] = df_chrono['Bankroll'].cummax()
                     df_chrono['Drawdown'] = df_chrono['Bankroll'] - df_chrono['Peak']
                     max_dd = abs(df_chrono['Drawdown'].min()) if not df_chrono['Drawdown'].empty else 0.0
 
+                    # A/E & Chi Score
+                    market_prices = np.where(df_chrono['BSP'] > 0, df_chrono['BSP'], df_chrono['7:30AM Price'])
+                    valid_prices = market_prices[market_prices > 1.0]
+                    expected_wins = np.sum(1.0 / valid_prices) if len(valid_prices) > 0 else 0.0
+                    actual_wins = breakdown['Wins'].sum()
+                    
+                    a_e = actual_wins / expected_wins if expected_wins > 0 else 0.0
+                    
+                    expected_losses = total_bets_for_roi - expected_wins
+                    actual_losses = total_bets_for_roi - actual_wins
+                    
+                    if expected_wins > 0 and expected_losses > 0:
+                        chi_score = ((actual_wins - expected_wins)**2 / expected_wins) + ((actual_losses - expected_losses)**2 / expected_losses)
+                    else:
+                        chi_score = 0.0
+
+                    # Sortino Ratio
+                    returns = df_chrono['Staked_PL']
+                    mean_return = returns.mean() if not returns.empty else 0.0
+                    downside = returns[returns < 0]
+                    downside_dev = np.sqrt(np.mean(downside**2)) if not downside.empty else 0.0
+                    sortino = (mean_return / downside_dev) if downside_dev > 0 else (99.99 if mean_return > 0 else 0.0)
+
+                    # Ulcer Index
+                    ulcer_index = np.sqrt(np.mean(df_chrono['Drawdown']**2)) if not df_chrono['Drawdown'].empty else 0.0
+
+                    win_sr = (breakdown['Wins'].sum() / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
+                    plc_sr = (breakdown['Places'].sum() / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
+
                     kpis = [
                         total_bets_for_roi, breakdown['Wins'].sum(), breakdown['Places'].sum(), 
                         breakdown['Win_Profit'].sum(), breakdown['Place_Profit'].sum(),
-                        total_roi_perc,
-                        # Pass the new advanced metrics
-                        llr, max_dd, (breakdown['Wins'].sum() / total_bets_for_roi * 100), (breakdown['Places'].sum() / total_bets_for_roi * 100)
+                        total_roi_perc
                     ]
+                    
+                    advanced_metrics = {
+                        'win_sr': win_sr, 'plc_sr': plc_sr, 'llr': llr, 'max_dd': max_dd, 
+                        'a_e': a_e, 'chi': chi_score, 'sortino': sortino, 'ulcer': ulcer_index
+                    }
 
                     qual_html_out, csv_data_out, timestamp_out = "", None, ""
                     
@@ -1524,7 +1553,8 @@ else:
                     html_table_out += "</tbody></table></div>"
 
                     st.session_state['tab4_results'] = {
-                        'kpis': kpis, 
+                        'kpis': kpis,
+                        'adv_kpis': advanced_metrics,
                         'breakdown_html': html_table_out, 
                         'qual_html': qual_html_out, 
                         'csv': csv_data_out, 
@@ -1539,6 +1569,7 @@ else:
                 else:
                     res = st.session_state['tab4_results']
                     kpis = res['kpis']
+                    adv = res['adv_kpis']
                     st.markdown("### System Preview Performance")
                     kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
                     kpi1.metric("Total Bets", int(kpis[0]))
@@ -1550,12 +1581,17 @@ else:
                     
                     # --- NEW: Advanced Metrics Sub-Row ---
                     st.markdown(f"""
-                        <div style='background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 5px; font-size: 14px;'>
-                            <b>Advanced Metrics:</b> 
-                            Win S/R: <b>{kpis[8]:.1f}%</b> &nbsp;|&nbsp; 
-                            Place S/R: <b>{kpis[9]:.1f}%</b> &nbsp;|&nbsp; 
-                            Longest Losing Run (LLR): <b style='color:#d32f2f;'>{int(kpis[6])}</b> &nbsp;|&nbsp; 
-                            Max Drawdown: <b style='color:#d32f2f;'>£{kpis[7]:.2f}</b> <i>(At £1 stakes)</i>
+                        <div style='background-color: #f8f9fa; padding: 12px; border-radius: 5px; margin-top: 5px; font-size: 13px; line-height: 2.0;'>
+                            <b style='color: #1a3a5f;'>Advanced Metrics:</b> &nbsp; 
+                            Win S/R: <b>{adv['win_sr']:.1f}%</b> &nbsp;|&nbsp; 
+                            Place S/R: <b>{adv['plc_sr']:.1f}%</b> &nbsp;|&nbsp; 
+                            LLR <span title='Longest Losing Run: The maximum consecutive losing bets.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b style='color:#d32f2f;'>{int(adv['llr'])}</b> &nbsp;|&nbsp; 
+                            Max DD <span title='Maximum Drawdown: The largest peak-to-trough drop at £1 stakes.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b style='color:#d32f2f;'>£{adv['max_dd']:.2f}</b><br>
+                            
+                            A/E <span title='Actual vs Expected Wins: Values > 1.0 indicate the system beats market odds.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['a_e']:.2f}</b> &nbsp;|&nbsp;
+                            Chi Score <span title='Statistical significance: > 3.84 means we are 95% confident this profit is due to a real edge, not luck.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['chi']:.2f}</b> &nbsp;|&nbsp;
+                            Sortino <span title='Sortino Ratio: Measures profit relative to downside volatility. Higher is better (>1.0 is good).' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['sortino']:.2f}</b> &nbsp;|&nbsp;
+                            Ulcer <span title='Ulcer Index: Measures the depth AND duration of drawdowns. Lower means less financial pain.' style='cursor:help; border-bottom:1px dotted #888; color:#1a3a5f;'>(?)</span>: <b>{adv['ulcer']:.2f}</b>
                         </div>
                     """, unsafe_allow_html=True)
 
