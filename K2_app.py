@@ -2002,7 +2002,7 @@ else:
    # =========================================================================
     # 📉 PAGE 7: TRUE VALUE SANDBOX
     # =========================================================================
-    elif page == "📉 Calibrated Lay Sandbox": # You can rename this in the sidebar radio button to "📉 True Value Sandbox" if you prefer
+    elif page == "📉 True Value Sandbox": # You can rename this in the sidebar radio button to "📉 True Value Sandbox" if you prefer
         st.header("📉 True Value Sandbox")
         st.markdown("""
         **Welcome to the Calibration Testing Ground.** This environment completely ignores your main AI. 
