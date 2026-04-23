@@ -572,7 +572,7 @@ else:
     st.sidebar.markdown("### 🧭 Main Menu")
     page = st.sidebar.radio(
         "Select an Option:",
-        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis"]
+        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis", "🧪 Acid Test Environment"]
     )
 
     # =========================================================================
@@ -1883,7 +1883,121 @@ else:
 
         else:
             st.info("No data available for today's races.")
+# =========================================================================
+    # 🧪 PAGE 6: ACID TEST ENVIRONMENT (OUT-OF-SAMPLE)
+    # =========================================================================
+    elif page == "🧪 Acid Test Environment":
+        st.header("🧪 The Acid Test: Out-of-Sample Validation")
+        st.markdown("""
+        **How it works:** This environment prevents "backtest drift" and data leakage. 
+        1. It slices your historical data chronologically.
+        2. It trains a completely fresh AI using *only* the past (Training Set).
+        3. It forces the AI to predict the future (Test Set) entirely blind.
+        If the ROI holds up in the Test Set, your edge is real. If it collapses, the AI was overfitted.
+        """)
+        
+        st.markdown("---")
+        
+        if df_all is not None and not df_all.empty:
+            c_date, c_btn = st.columns([2, 1])
+            
+            with c_date:
+                min_dt = df_all['Date_DT'].min().date()
+                max_dt = df_all['Date_DT'].max().date()
+                
+                # Default to roughly a 70/30 split (e.g., start of 2026)
+                default_split = datetime(2026, 1, 1).date()
+                if default_split < min_dt or default_split > max_dt:
+                    default_split = min_dt + timedelta(days=(max_dt - min_dt).days * 0.7)
+                
+                split_date = st.date_input("Select Chronological Split Date (The 'Wall'):", value=default_split, min_value=min_dt, max_value=max_dt)
+                
+            with c_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                run_test = st.button("🚀 Run Blind Out-of-Sample Test", use_container_width=True, type="primary")
 
+            if run_test:
+                with st.spinner("Training fresh AI on the past and predicting the future blind..."):
+                    # 1. Prepare data (ensure no NaNs in target)
+                    df_clean = df_all[df_all['Fin Pos'] > 0].copy()
+                    
+                    # 2. Slice the data at the "Wall"
+                    train_df = df_clean[df_clean['Date_DT'].dt.date < split_date].copy()
+                    test_df = df_clean[df_clean['Date_DT'].dt.date >= split_date].copy()
+                    
+                    if train_df.empty or test_df.empty:
+                        st.error("Error: Not enough data on one side of the split date. Please adjust the date.")
+                    else:
+                        # 3. Train a brand new model STRICTLY on the training data
+                        test_model = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
+                        test_model.fit(train_df[feats].fillna(0), (train_df['Fin Pos'] == 1).astype(int))
+                        
+                        # 4. Predict on both sets to compare
+                        train_df['Blind_Prob'] = test_model.predict_proba(train_df[feats].fillna(0))[:, 1]
+                        test_df['Blind_Prob'] = test_model.predict_proba(test_df[feats].fillna(0))[:, 1]
+                        
+                        # Rank them
+                        train_df['Blind_Rank'] = train_df.groupby(['Date_Key', 'Time', 'Course'])['Blind_Prob'].rank(ascending=False, method='first')
+                        test_df['Blind_Rank'] = test_df.groupby(['Date_Key', 'Time', 'Course'])['Blind_Prob'].rank(ascending=False, method='first')
+                        
+                        # Set Win/Place markers
+                        train_df['Is_Win'] = np.where(train_df['Win P/L <2%'] > 0, 1, 0)
+                        test_df['Is_Win'] = np.where(test_df['Win P/L <2%'] > 0, 1, 0)
+                        
+                        def calculate_kpis(data_subset, rank_filter=1):
+                            bets = data_subset[data_subset['Blind_Rank'] == rank_filter]
+                            count = len(bets)
+                            if count == 0: return 0, 0, 0
+                            wins = bets['Is_Win'].sum()
+                            profit = bets['Win P/L <2%'].sum()
+                            roi = (profit / count) * 100
+                            sr = (wins / count) * 100
+                            return count, profit, roi, sr
+                            
+                        # Calculate for Rank 1
+                        tr_count, tr_profit, tr_roi, tr_sr = calculate_kpis(train_df, 1)
+                        te_count, te_profit, te_roi, te_sr = calculate_kpis(test_df, 1)
+                        
+                        st.success("✅ Blind Test Complete! Here is the harsh truth.")
+                        
+                        # Render Results
+                        st.markdown("### Baseline Performance: AI Rank 1 Only")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown(f"""
+                            <div style='background-color: #e8f4f8; padding: 20px; border-radius: 10px; border-left: 5px solid #1976d2;'>
+                                <h4>📚 Training Set (The Past)</h4>
+                                <p style='font-size: 14px; color: #555;'>Data <b>before</b> {split_date.strftime('%d %b %Y')}</p>
+                                <h2>ROI: <span style='color: {"#2e7d32" if tr_roi >= 0 else "#d32f2f"};'>{tr_roi:.2f}%</span></h2>
+                                <p><b>Total Bets:</b> {tr_count}<br>
+                                <b>Win S/R:</b> {tr_sr:.1f}%<br>
+                                <b>Total P/L:</b> £{tr_profit:.2f}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                        with col2:
+                            st.markdown(f"""
+                            <div style='background-color: #f8e8e8; padding: 20px; border-radius: 10px; border-left: 5px solid #d32f2f;'>
+                                <h4>🎯 Blind Test Set (The Future)</h4>
+                                <p style='font-size: 14px; color: #555;'>Data <b>after</b> {split_date.strftime('%d %b %Y')}</p>
+                                <h2>ROI: <span style='color: {"#2e7d32" if te_roi >= 0 else "#d32f2f"};'>{te_roi:.2f}%</span></h2>
+                                <p><b>Total Bets:</b> {te_count}<br>
+                                <b>Win S/R:</b> {te_sr:.1f}%<br>
+                                <b>Total P/L:</b> £{te_profit:.2f}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if te_roi > 0 and (tr_roi - te_roi) < 10:
+                            st.info("🏆 **Verdict: Excellent.** The AI maintained profitability when predicting blind. This suggests a legitimate, robust market edge.")
+                        elif te_roi > 0 and (tr_roi - te_roi) >= 10:
+                            st.warning("⚠️ **Verdict: Borderline.** The system is profitable, but performance dropped significantly in the blind test. The training ROI is likely inflated by overfitting.")
+                        else:
+                            st.error("🚨 **Verdict: Overfitted.** The system crashed when forced to predict blind data. The high ROIs seen in the main app are likely due to the AI memorizing the past.")
+        else:
+            st.warning("No historical data available to run the test.")
     # --- ADMIN SIDEBAR TOOLS ---
     if st.session_state.get("is_admin"):
         st.sidebar.markdown("---")
