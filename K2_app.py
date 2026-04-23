@@ -1999,14 +1999,14 @@ else:
         else:
             st.warning("No historical data available to run the test.")
     # --- ADMIN SIDEBAR TOOLS ---
-   # =========================================================================
+
+# =========================================================================
     # 📉 PAGE 7: TRUE VALUE SANDBOX
     # =========================================================================
-    elif page == "📉 True Value Sandbox": # You can rename this in the sidebar radio button to "📉 True Value Sandbox" if you prefer
-        st.header("📉 True Value Sandbox")
+    elif page == "📉 True Value Sandbox":
+        st.header("📉 True Value Sandbox & System Audit")
         st.markdown("""
-        **Welcome to the Calibration Testing Ground.** This environment completely ignores your main AI. 
-        It trains a highly restricted ("leashed") AI designed to stop memorizing winners and start outputting realistic, true probabilities.
+        **Welcome to the Calibration Testing Ground.** This environment trains a highly restricted ("leashed") AI designed to stop memorizing winners and start outputting realistic, true probabilities.
         
         **The Value Logic:** 1. AI calculates **True Probability** (e.g., 12%).
         2. We convert that to a **True Value Price** (`1 / 0.12 = 8.33`).
@@ -2030,14 +2030,10 @@ else:
                     train_df['True_AI_Prob'] = cal_model.predict_proba(train_df[feats].fillna(0))[:, 1]
 
                     # 3. Calculate True Value Price
-                    # Prevent division by zero if prob is extremely small
                     train_df['True_Value_Price'] = np.where(train_df['True_AI_Prob'] > 0.001, 1.0 / train_df['True_AI_Prob'], 1000.0)
 
                     # 4. Calculate Market Price & The Value Edge
                     train_df['Market_Price'] = np.where(train_df['BSP'] > 0, train_df['BSP'], train_df['7:30AM Price'])
-                    
-                    # Edge Percentage = How much bigger is the market price than our required price?
-                    # E.g., Market 10.0 / True Value 8.0 = 1.25 -> 25% Edge
                     train_df['Value_Edge_Perc'] = ((train_df['Market_Price'] / train_df['True_Value_Price']) - 1) * 100
 
                     # 5. Set up Win markers and P/L
@@ -2048,61 +2044,149 @@ else:
 
         if 'value_sandbox_df' in st.session_state:
             vdf = st.session_state['value_sandbox_df']
+            
+            sandbox_mode = st.radio("Select Mode:", ["🔍 Manual Value Hunter", "🩺 System Value Audit"], horizontal=True)
+            st.markdown("---")
 
-            st.markdown("### 🔍 Filter Value Opportunities")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                min_value_edge = st.number_input("Minimum Value Edge % (Market vs True Price)", value=10.0, step=5.0)
-            with col2:
-                max_market_price = st.number_input("Maximum Market Price (Cap volatility)", value=20.0, step=1.0)
-            with col3:
-                min_ai_prob = st.number_input("Minimum True AI Prob % (Avoid extreme longshots)", value=5.0, step=1.0)
+            if sandbox_mode == "🔍 Manual Value Hunter":
+                col1, col2, col3 = st.columns(3)
+                with col1: min_value_edge = st.number_input("Minimum Value Edge %", value=15.0, step=5.0)
+                with col2: max_market_price = st.number_input("Maximum Market Price (Outlier Killer)", value=16.0, step=1.0)
+                with col3: min_ai_prob = st.number_input("Minimum True AI Prob %", value=6.0, step=1.0)
 
-            # Apply sandbox filters
-            mask = (vdf['Value_Edge_Perc'] >= min_value_edge)
-            mask &= (vdf['Market_Price'] <= max_market_price)
-            mask &= ((vdf['True_AI_Prob'] * 100) >= min_ai_prob)
+                mask = (vdf['Value_Edge_Perc'] >= min_value_edge) & (vdf['Market_Price'] <= max_market_price) & ((vdf['True_AI_Prob'] * 100) >= min_ai_prob)
+                res = vdf[mask].copy()
 
-            res = vdf[mask].copy()
+                st.markdown("### 📊 Backing System Performance")
+                if not res.empty:
+                    total_bets = len(res)
+                    wins = res['Is_Win'].sum()
+                    total_pl = res['Win P/L <2%'].sum()
+                    sr = (wins / total_bets) * 100 if total_bets > 0 else 0
+                    roi = (total_pl / total_bets) * 100 if total_bets > 0 else 0
 
-            st.markdown("### 📊 Backing System Performance")
-            if not res.empty:
-                total_bets = len(res)
-                wins = res['Is_Win'].sum()
-                total_pl = res['Win P/L <2%'].sum()
-                sr = (wins / total_bets) * 100 if total_bets > 0 else 0
-                roi = (total_pl / total_bets) * 100 if total_bets > 0 else 0
+                    max_win_amount = res['Win P/L <2%'].max() if wins > 0 else 0.0
+                    pl_no_outlier = total_pl - max_win_amount
+                    roi_no_outlier = (pl_no_outlier / (total_bets - 1)) * 100 if total_bets > 1 else 0
 
-                # --- OUTLIER STRESS TEST ---
-                # Find the single biggest winning return in the dataset
-                max_win_amount = res['Win P/L <2%'].max() if wins > 0 else 0.0
-                # Recalculate P/L and ROI pretending that massive winner never happened
-                pl_no_outlier = total_pl - max_win_amount
-                roi_no_outlier = (pl_no_outlier / total_bets) * 100 if total_bets > 0 else 0
+                    k1, k2, k3, k4, k5 = st.columns(5)
+                    k1.metric("Total Bets", total_bets)
+                    k2.metric("Wins", wins)
+                    k3.metric("Win Strike Rate", f"{sr:.1f}%")
+                    k4.metric("Total ROI", f"{roi:.2f}%")
+                    
+                    outlier_color = "normal" if roi_no_outlier >= 0 else "inverse"
+                    k5.metric("ROI (Excluding Top Win)", f"{roi_no_outlier:.2f}%", delta=f"{roi_no_outlier - roi:.2f}%", delta_color=outlier_color)
 
-                k1, k2, k3, k4, k5 = st.columns(5)
-                k1.metric("Total Bets", total_bets)
-                k2.metric("Wins", wins)
-                k3.metric("Win Strike Rate", f"{sr:.1f}%")
-                k4.metric("Total ROI", f"{roi:.2f}%")
+                    st.markdown("<br><b>Preview of Qualifying Value Bets:</b>", unsafe_allow_html=True)
+                    display_df = res[['Date_Key', 'Time', 'Course', 'Horse', 'True_AI_Prob', 'True_Value_Price', 'Market_Price', 'Value_Edge_Perc', 'Is_Win', 'Win P/L <2%']].copy()
+                    display_df['True_AI_Prob'] = (display_df['True_AI_Prob'] * 100).round(1).astype(str) + '%'
+                    display_df['True_Value_Price'] = display_df['True_Value_Price'].round(2)
+                    display_df['Market_Price'] = display_df['Market_Price'].round(2)
+                    display_df['Value_Edge_Perc'] = display_df['Value_Edge_Perc'].round(1).astype(str) + '%'
+                    display_df['Win P/L <2%'] = '£' + display_df['Win P/L <2%'].round(2).astype(str)
+                    st.dataframe(display_df.sort_values(by=['Date_Key', 'Time']).tail(500), use_container_width=True)
+                else:
+                    st.info("No bets match these criteria.")
+            
+            elif sandbox_mode == "🩺 System Value Audit":
+                st.markdown("Select a saved system to see exactly how much of its profit was driven by True Value versus Market Luck.")
                 
-                # Display the Stress Test with color coding
-                outlier_color = "normal" if roi_no_outlier >= 0 else "inverse"
-                k5.metric("ROI (Excluding Top Win)", f"{roi_no_outlier:.2f}%", delta=f"{roi_no_outlier - roi:.2f}%", delta_color=outlier_color)
+                # Load Systems
+                saved_systems = {}
+                for file_name in ["K2_user_systems.json", "K2_admin_systems.json"]:
+                    if os.path.exists(file_name):
+                        try:
+                            with open(file_name, "r") as f: saved_systems.update(json.load(f))
+                        except: pass
+                
+                if saved_systems:
+                    sys_name = st.selectbox("Select System to Audit:", list(saved_systems.keys()))
+                    sys_data = saved_systems[sys_name]
+                    
+                    if st.button("🚀 Run Value X-Ray on System"):
+                        # Apply System Mechanical Filters
+                        s_mask = (
+                            vdf['Race Type'].isin(sys_data.get('race_types', [])) &
+                            vdf['H/Cap'].isin(sys_data.get('hcap_types', [])) &
+                            (vdf['7:30AM Price'] >= sys_data.get('price_min', 0.0)) &
+                            (vdf['7:30AM Price'] <= sys_data.get('price_max', 1000.0))
+                        )
+                        
+                        rnrs = sys_data.get('rnrs', [])
+                        r_m = pd.Series(False, index=vdf.index)
+                        if "2-7" in rnrs: r_m |= (vdf['No. of Rnrs'] >= 2) & (vdf['No. of Rnrs'] <= 7)
+                        if "8-12" in rnrs: r_m |= (vdf['No. of Rnrs'] >= 8) & (vdf['No. of Rnrs'] <= 12)
+                        if "13-16" in rnrs: r_m |= (vdf['No. of Rnrs'] >= 13) & (vdf['No. of Rnrs'] <= 16)
+                        if ">16" in rnrs: r_m |= (vdf['No. of Rnrs'] > 16)
+                        if not r_m.any() and not rnrs: r_m = pd.Series(True, index=vdf.index)
+                        s_mask &= r_m
 
-                st.markdown("<br><b>Preview of Qualifying Value Bets:</b>", unsafe_allow_html=True)
-                
-                # Format for display
-                display_df = res[['Date_Key', 'Time', 'Course', 'Horse', 'True_AI_Prob', 'True_Value_Price', 'Market_Price', 'Value_Edge_Perc', 'Is_Win', 'Win P/L <2%']].copy()
-                display_df['True_AI_Prob'] = (display_df['True_AI_Prob'] * 100).round(1).astype(str) + '%'
-                display_df['True_Value_Price'] = display_df['True_Value_Price'].round(2)
-                display_df['Market_Price'] = display_df['Market_Price'].round(2)
-                display_df['Value_Edge_Perc'] = display_df['Value_Edge_Perc'].round(1).astype(str) + '%'
-                display_df['Win P/L <2%'] = '£' + display_df['Win P/L <2%'].round(2).astype(str)
-                
-                st.dataframe(display_df.sort_values(by=['Date_Key', 'Time']).tail(500), use_container_width=True)
-            else:
-                st.info("No bets match these criteria. Try lowering the required Edge or relaxing the Prob/Price filters.")
+                        if 'Class' in vdf.columns and sys_data.get('classes'): s_mask &= vdf['Class'].isin(sys_data['classes'])
+                        if 'Class Move' in vdf.columns and sys_data.get('cm'): s_mask &= vdf['Class Move'].isin(sys_data['cm'])
+                        if 'Age' in vdf.columns: s_mask &= (vdf['Age'] >= sys_data.get('age_min', 1)) & (vdf['Age'] <= sys_data.get('age_max', 20))
+                        
+                        ranks = sys_data.get('ranks', {})
+                        for col_name, setting in ranks.items():
+                            if setting != "Any" and col_name in vdf.columns:
+                                num_col = pd.to_numeric(vdf[col_name], errors='coerce')
+                                if setting == "Rank 1": s_mask &= (num_col == 1)
+                                elif setting == "Top 2": s_mask &= (num_col <= 2)
+                                elif setting == "Top 3": s_mask &= (num_col <= 3)
+                                elif setting == "Not Top 3": s_mask &= ((num_col > 3) | (num_col == 0))
+
+                        sys_df = vdf[s_mask].copy()
+                        
+                        if not sys_df.empty:
+                            # Create Value Brackets
+                            bins = [-np.inf, 0.0, 10.0, np.inf]
+                            labels = ['1. Negative Edge (< 0%)', '2. Fair Value (0% to 10%)', '3. Deep Value (> 10%)']
+                            sys_df['Edge Bracket'] = pd.cut(sys_df['Value_Edge_Perc'], bins=bins, labels=labels)
+                            
+                            breakdown = sys_df.groupby('Edge Bracket', observed=False).agg(
+                                Bets=('Horse', 'count'),
+                                Wins=('Is_Win', 'sum'),
+                                PNL=('Win P/L <2%', 'sum')
+                            ).reset_index()
+                            
+                            breakdown['S/R %'] = np.where(breakdown['Bets'] > 0, (breakdown['Wins'] / breakdown['Bets']) * 100, 0)
+                            breakdown['ROI %'] = np.where(breakdown['Bets'] > 0, (breakdown['PNL'] / breakdown['Bets']) * 100, 0)
+                            
+                            st.markdown(f"### 🩻 Value X-Ray for '{sys_name}'")
+                            
+                            html_table = """<table style="width: 100%; border-collapse: collapse; text-align: center;">
+                            <tr style="background-color: #1a3a5f; color: white;"><th>True Value Bracket</th><th>Total Bets</th><th>Wins</th><th>Strike Rate</th><th>Win P/L</th><th>ROI</th></tr>"""
+                            
+                            total_bets = breakdown['Bets'].sum()
+                            total_wins = breakdown['Wins'].sum()
+                            total_pl = breakdown['PNL'].sum()
+                            total_roi = (total_pl / total_bets) * 100 if total_bets > 0 else 0
+                            
+                            for _, row in breakdown.iterrows():
+                                bg = "#ffebee" if "Negative" in row['Edge Bracket'] else "#e8f4f8" if "Fair" in row['Edge Bracket'] else "#e8f8e8"
+                                pl_col = "#d32f2f" if row['PNL'] < 0 else "#2e7d32"
+                                html_table += f"<tr style='background-color: {bg}; border-bottom: 1px solid #ddd;'>"
+                                html_table += f"<td style='padding: 8px; text-align: left;'><b>{row['Edge Bracket']}</b></td>"
+                                html_table += f"<td>{row['Bets']}</td><td>{row['Wins']}</td><td>{row['S/R %']:.1f}%</td>"
+                                html_table += f"<td style='color: {pl_col}; font-weight: bold;'>£{row['PNL']:.2f}</td>"
+                                html_table += f"<td style='color: {pl_col}; font-weight: bold;'>{row['ROI %']:.1f}%</td></tr>"
+                            
+                            # Add Totals Row
+                            t_col = "#d32f2f" if total_pl < 0 else "#2e7d32"
+                            html_table += f"<tr style='background-color: #f0f0f0; border-top: 2px solid #1a3a5f; font-weight: bold;'>"
+                            html_table += f"<td style='padding: 8px; text-align: left;'>SYSTEM TOTALS</td>"
+                            html_table += f"<td>{total_bets}</td><td>{total_wins}</td><td>{(total_wins/total_bets*100):.1f}%</td>"
+                            html_table += f"<td style='color: {t_col};'>£{total_pl:.2f}</td><td style='color: {t_col};'>{total_roi:.1f}%</td></tr>"
+                            
+                            html_table += "</table>"
+                            st.markdown(html_table, unsafe_allow_html=True)
+                            
+                            st.info("💡 **How to use this:** If the 'Deep Value (> 10%)' bracket is generating the vast majority of your profit, you should upgrade your system to include a True Value filter!")
+                        else:
+                            st.warning("This system generated no qualifying bets in the historical data.")
+                else:
+                    st.info("No saved systems found. Create and save a system in the System Builder first.")
+    
     if st.session_state.get("is_admin"):
         st.sidebar.markdown("---")
         st.sidebar.markdown("### ⚙️ Admin Tools")
