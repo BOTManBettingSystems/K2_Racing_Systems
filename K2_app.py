@@ -572,7 +572,7 @@ else:
     st.sidebar.markdown("### 🧭 Main Menu")
     page = st.sidebar.radio(
         "Select an Option:",
-        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis", "🧪 Acid Test Environment", "📉 True Sandbox"]
+        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis", "🧪 Acid Test Environment", "📉 True Value Sandbox"]
     )
 
     # =========================================================================
