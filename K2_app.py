@@ -572,7 +572,7 @@ else:
     st.sidebar.markdown("### 🧭 Main Menu")
     page = st.sidebar.radio(
         "Select an Option:",
-        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis", "🧪 Acid Test Environment"]
+        ["📅 Daily Predictions", "📊 AI Top 2 Results", "🧠 General Systems", "🛠️ System Builder", "🏇 Race Analysis", "🧪 Acid Test Environment", "📉 Calibrated Lay Sandbox"]
     )
 
     # =========================================================================
@@ -1999,6 +1999,96 @@ else:
         else:
             st.warning("No historical data available to run the test.")
     # --- ADMIN SIDEBAR TOOLS ---
+    # =========================================================================
+    # 📉 PAGE 7: CALIBRATED LAY SANDBOX
+    # =========================================================================
+    elif page == "📉 Calibrated Lay Sandbox":
+        st.header("📉 Calibrated Lay Sandbox")
+        st.markdown("""
+        **Welcome to the True Probability Testing Ground.** This environment completely ignores your main AI. Instead, it trains a "leashed" AI designed to stop memorizing winners and start outputting realistic, calibrated probabilities.
+        
+        **The Lay Logic:** We are looking for **False Favorites**. If the Market Odds imply a horse has a 33% chance to win (3.0 odds), but our Calibrated AI calculates its true chance is only 15%, we have a massive +18% Lay Edge.
+        """)
+        st.markdown("---")
+
+        if df_all is not None and not df_all.empty:
+            if st.button("⚙️ Train Calibrated AI & Generate Lay Data", type="primary", use_container_width=True):
+                with st.spinner("Training the leashed, calibrated AI... this may take a minute."):
+                    train_df = df_all[df_all['Fin Pos'] > 0].copy()
+
+                    # 1. Train the LEASHED Model (Depth 3, Heavy Regularization, High Min Samples)
+                    cal_model = HistGradientBoostingClassifier(
+                        max_iter=100, learning_rate=0.05, max_depth=3,
+                        l2_regularization=15.0, min_samples_leaf=250, random_state=42
+                    )
+                    cal_model.fit(train_df[feats].fillna(0), (train_df['Fin Pos'] == 1).astype(int))
+
+                    # 2. Get True Calibrated Probabilities
+                    train_df['True_AI_Prob'] = cal_model.predict_proba(train_df[feats].fillna(0))[:, 1]
+
+                    # 3. Calculate Market Implied Probability (Using BSP as primary, 7:30AM as fallback)
+                    train_df['Market_Price'] = np.where(train_df['BSP'] > 0, train_df['BSP'], train_df['7:30AM Price'])
+                    train_df['Market_Implied_Prob'] = np.where(train_df['Market_Price'] > 1.0, 1.0 / train_df['Market_Price'], 0)
+
+                    # 4. Calculate The Lay Edge (Market expectation minus AI expectation)
+                    train_df['Lay_Edge_Perc'] = (train_df['Market_Implied_Prob'] - train_df['True_AI_Prob']) * 100
+
+                    # 5. Calculate Lay P/L (Assuming £10 Backer Stake at 2% Commission)
+                    # If horse WINS: We pay the liability -> -£10 * (Odds - 1)
+                    # If horse LOSES: We keep the stake -> +£10 * 0.98 (Commission)
+                    train_df['Is_Win'] = np.where(train_df['Fin Pos'] == 1, 1, 0)
+                    train_df['Lay_Liability'] = 10.0 * (train_df['Market_Price'] - 1)
+                    train_df['Lay_P/L'] = np.where(train_df['Is_Win'] == 1, -train_df['Lay_Liability'], 10.0 * 0.98)
+
+                    # Store in session state for instant filtering
+                    st.session_state['lay_sandbox_df'] = train_df
+                    st.success("✅ Calibrated AI Trained! Data is ready for Lay testing.")
+
+        if 'lay_sandbox_df' in st.session_state:
+            ldf = st.session_state['lay_sandbox_df']
+
+            st.markdown("### 🔍 Filter Lay Opportunities")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                max_bsp = st.number_input("Maximum Market Price (Target favorites to keep liability low)", value=4.0, step=0.5)
+            with col2:
+                min_lay_edge = st.number_input("Minimum Lay Edge % (Market Prob minus AI Prob)", value=8.0, step=1.0)
+            with col3:
+                max_ai_prob = st.number_input("Maximum True AI Probability % (Must be <)", value=15.0, step=1.0)
+
+            # Apply sandbox filters
+            mask = (ldf['Market_Price'] <= max_bsp) & (ldf['Market_Price'] > 1.0)
+            mask &= (ldf['Lay_Edge_Perc'] >= min_lay_edge)
+            mask &= ((ldf['True_AI_Prob'] * 100) <= max_ai_prob)
+
+            res = ldf[mask].copy()
+
+            st.markdown("### 📊 Lay System Performance (Targeting £10 Profit per race)")
+            if not res.empty:
+                total_lays = len(res)
+                successful_lays = len(res[res['Is_Win'] == 0]) # Horse lost, we keep the stake!
+                failed_lays = len(res[res['Is_Win'] == 1])     # Horse won, we pay liability
+                total_pl = res['Lay_P/L'].sum()
+                sr = (successful_lays / total_lays) * 100
+
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("Total Lays Placed", total_lays)
+                k2.metric("Successful Lays (Horse Lost)", successful_lays)
+                k3.metric("Lay Strike Rate", f"{sr:.1f}%")
+                k4.metric("Total Lay P/L (£)", f"£{total_pl:.2f}")
+
+                st.markdown("<br><b>Preview of Qualifying Lay Bets:</b>", unsafe_allow_html=True)
+                
+                # Format for display
+                display_df = res[['Date_Key', 'Time', 'Course', 'Horse', 'Market_Price', 'True_AI_Prob', 'Market_Implied_Prob', 'Lay_Edge_Perc', 'Lay_P/L']].copy()
+                display_df['True_AI_Prob'] = (display_df['True_AI_Prob'] * 100).round(1).astype(str) + '%'
+                display_df['Market_Implied_Prob'] = (display_df['Market_Implied_Prob'] * 100).round(1).astype(str) + '%'
+                display_df['Lay_Edge_Perc'] = display_df['Lay_Edge_Perc'].round(2).astype(str) + '%'
+                display_df['Lay_P/L'] = '£' + display_df['Lay_P/L'].round(2).astype(str)
+                
+                st.dataframe(display_df.sort_values(by=['Date_Key', 'Time']).tail(500), use_container_width=True)
+            else:
+                st.info("No lay bets match these criteria. Try relaxing the Edge or Price filters.")
     if st.session_state.get("is_admin"):
         st.sidebar.markdown("---")
         st.sidebar.markdown("### ⚙️ Admin Tools")
