@@ -2073,11 +2073,22 @@ else:
                 sr = (wins / total_bets) * 100 if total_bets > 0 else 0
                 roi = (total_pl / total_bets) * 100 if total_bets > 0 else 0
 
-                k1, k2, k3, k4 = st.columns(4)
+                # --- OUTLIER STRESS TEST ---
+                # Find the single biggest winning return in the dataset
+                max_win_amount = res['Win P/L <2%'].max() if wins > 0 else 0.0
+                # Recalculate P/L and ROI pretending that massive winner never happened
+                pl_no_outlier = total_pl - max_win_amount
+                roi_no_outlier = (pl_no_outlier / total_bets) * 100 if total_bets > 0 else 0
+
+                k1, k2, k3, k4, k5 = st.columns(5)
                 k1.metric("Total Bets", total_bets)
                 k2.metric("Wins", wins)
                 k3.metric("Win Strike Rate", f"{sr:.1f}%")
                 k4.metric("Total ROI", f"{roi:.2f}%")
+                
+                # Display the Stress Test with color coding
+                outlier_color = "normal" if roi_no_outlier >= 0 else "inverse"
+                k5.metric("ROI (Excluding Top Win)", f"{roi_no_outlier:.2f}%", delta=f"{roi_no_outlier - roi:.2f}%", delta_color=outlier_color)
 
                 st.markdown("<br><b>Preview of Qualifying Value Bets:</b>", unsafe_allow_html=True)
                 
