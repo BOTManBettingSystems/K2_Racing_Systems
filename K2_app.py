@@ -268,7 +268,6 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['Rank2_Prob'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else 0)
         
     b_df['Prob Gap'] = b_df['ML_Prob'] - b_df['Rank2_Prob']
-    b_df['Value Price'] = 1 / b_df['ML_Prob']
     b_df['User Value'] = pd.to_numeric(b_df.get('Value', 0), errors='coerce')
         
     bins = [-1.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 15.0, 20.0, 50.0, 100.0, 1000.0]
@@ -287,11 +286,13 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['Market_Price'] = np.where(b_df['BSP'] > 0, b_df['BSP'], b_df['7:30AM Price'])
         b_df['Value_Edge_Perc'] = ((b_df['Market_Price'] / b_df['True_Value_Price']) - 1) * 100
         
+        # Base initial brackets (dynamically overwritten later in the builder if sliders used)
         v_bins = [-np.inf, 0.0, 10.0, np.inf]
         v_labels = ['1. Negative Edge (< 0%)', '2. Fair Value (0% to 10%)', '3. Deep Value (> 10%)']
         b_df['Edge Bracket'] = pd.cut(b_df['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
         b_df['Edge Bracket'] = b_df['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     else:
+        b_df['Value Price'] = 1 / b_df['ML_Prob'] # Fallback
         b_df['Value_Edge_Perc'] = 0.0
         b_df['Edge Bracket'] = 'Unknown'
         
@@ -994,7 +995,7 @@ else:
             
             defaults = {
                 'ui_months': all_months, 'ui_courses': [], 'ui_race_types': rt_opts, 'ui_hcap_types': hcap_opts,
-                'ui_price_min': 0.0, 'ui_price_max': 1000.0, 'ui_prob_gap': -100.0, 'ui_min_edge': -100.0,
+                'ui_price_min': 0.0, 'ui_price_max': 1000.0, 'ui_prob_gap': -100.0, 'ui_min_edge': -100.0, 'ui_bracket_1': 0.0, 'ui_bracket_2': 10.0,
                 'ui_rnrs': rnr_opts, 'ui_classes': class_opts, 'ui_cm': cm_opts,
                 'ui_ai_rank_filter': "Any", 'ui_sex': sex_opts, 'ui_value_filter': "Off",
                 'ui_irish_f': "Any", 'ui_age_range': (1, 20),
@@ -1019,6 +1020,8 @@ else:
                 st.session_state['ui_price_max'] = float(sys_data.get('price_max', 1000.0))
                 st.session_state['ui_prob_gap'] = float(sys_data.get('min_prob_gap', -1.0)) * 100
                 st.session_state['ui_min_edge'] = float(sys_data.get('min_edge_perc', -100.0))
+                st.session_state['ui_bracket_1'] = float(sys_data.get('bracket_1', 0.0))
+                st.session_state['ui_bracket_2'] = float(sys_data.get('bracket_2', 10.0))
                 st.session_state['ui_rnrs'] = sys_data.get('rnrs', rnr_opts)
                 st.session_state['ui_classes'] = [c for c in sys_data.get('classes', []) if c in class_opts]
                 st.session_state['ui_cm'] = [c for c in sys_data.get('cm', []) if c in cm_opts]
@@ -1137,6 +1140,12 @@ else:
                     
                     r3_c1, r3_c2, r3_c3, r3_c4, r3_c5 = st.columns(5)
                     with r3_c1: pure_f = st.selectbox("Pure Rank", rank_opts, index=get_r_idx('ui_pure_f'))
+
+                with st.expander("🩻 Custom Value X-Ray Brackets", expanded=False):
+                    v_c1, v_c2 = st.columns(2)
+                    with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
+                    with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
+                    st.info(f"Dynamically splits the table into: '< {bracket_1}%', '{bracket_1}% to {bracket_2}%', and '> {bracket_2}%'.")
                 
                 st.markdown("---")
                 st.markdown("### 📊 Dynamic Table Grouping")
@@ -1199,7 +1208,7 @@ else:
                     if st.button("Generate JSON Code", use_container_width=True):
                         if new_sys_name:
                             sys_data = {
-                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "min_edge_perc": min_edge_perc, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "ai_rank_filter": ai_rank_filter, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
+                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "min_edge_perc": min_edge_perc, "bracket_1": bracket_1, "bracket_2": bracket_2, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "ai_rank_filter": ai_rank_filter, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
                                 "ranks": {"Comb. Rank": comb_f, "Comp. Rank": comp_f, "Speed Rank": speed_f, "Race Rank": race_f, "Primary Rank": primary_f, "MSAI Rank": msai_f, "PRB Rank": prb_f, "Trainer PRB Rank": tprb_f, "Jockey PRB Rank": jprb_f, "Form Rank": form_f, "Pure Rank": pure_f}
                             }
                             st.code(f'"{new_sys_name}": {json.dumps(sys_data, indent=4)}', language="json")
@@ -1309,6 +1318,13 @@ else:
                 df_filtered = b_df[mask].copy()
 
                 if not df_filtered.empty:
+                    # --- NEW: DYNAMIC EDGE BRACKETS ---
+                    safe_b2 = max(bracket_1 + 0.1, float(bracket_2))
+                    v_bins = [-np.inf, bracket_1, safe_b2, np.inf]
+                    v_labels = [f'1. Negative Edge (< {bracket_1}%)', f'2. Fair Value ({bracket_1}% to {safe_b2:.1f}%)', f'3. Deep Value (> {safe_b2:.1f}%)']
+                    df_filtered['Edge Bracket'] = pd.cut(df_filtered['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
+                    df_filtered['Edge Bracket'] = df_filtered['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
+                    
                     if 'Date_DT' in df_filtered.columns:
                         df_filtered['Month/Year'] = df_filtered['Date_DT'].dt.strftime('%Y-%m (%b)')
                     else:
@@ -1447,6 +1463,10 @@ else:
                         t_filtered = t_df[t_mask].copy()
                         
                         if not t_filtered.empty:
+                            # --- NEW: DYNAMIC EDGE BRACKETS (TODAY'S QUALIFIERS) ---
+                            t_filtered['Edge Bracket'] = pd.cut(t_filtered['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
+                            t_filtered['Edge Bracket'] = t_filtered['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
+                            
                             t_filtered = t_filtered.sort_values(by=['Time', 'Course'])
                             dl_cols = [c for c in ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'Pure Rank'] if c in t_filtered.columns]
                             
