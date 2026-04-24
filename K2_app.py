@@ -1141,11 +1141,12 @@ else:
                     r3_c1, r3_c2, r3_c3, r3_c4, r3_c5 = st.columns(5)
                     with r3_c1: pure_f = st.selectbox("Pure Rank", rank_opts, index=get_r_idx('ui_pure_f'))
 
-                with st.expander("🩻 Custom Value X-Ray Brackets", expanded=False):
-                    v_c1, v_c2 = st.columns(2)
-                    with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
-                    with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
-                    st.info(f"Dynamically splits the table into: '< {bracket_1}%', '{bracket_1}% to {bracket_2}%', and '> {bracket_2}%'.")
+                st.markdown("---")
+                st.markdown("### 🩻 Custom Value X-Ray Brackets")
+                v_c1, v_c2 = st.columns(2)
+                with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
+                with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
+                st.info(f"Dynamically splits the table into: '< {bracket_1}%', '{bracket_1}% to {bracket_2}%', and '> {bracket_2}%'.")
                 
                 st.markdown("---")
                 st.markdown("### 📊 Dynamic Table Grouping")
