@@ -1143,7 +1143,16 @@ else:
 
                 st.markdown("---")
                 st.markdown("### 🩻 Custom Value X-Ray Brackets")
+                st.markdown("""
+                **How to use these sliders:**
+                These sliders let you 'X-Ray' your system's data to find the exact point where your profit scales up. They do **not** filter out horses; they only change how the bottom table is grouped.
+                * **The Strategy:** Move Bracket 2 to `12%` and hit Process Data. You might discover that the `> 12%` group generates a massive +30% ROI, while the `0% to 12%` group actually loses money.
+                * **The Execution:** Once you find that magic sweet spot, scroll back up to the Core Filters, set your **Min Value Edge %** to that exact number (e.g., `12.0`), and save your system. Now your daily qualifiers will only serve you the elite bets!
+                """)
                 v_c1, v_c2 = st.columns(2)
+                with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
+                with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
+                st.info(f"Dynamically splits the breakdown table below into: **< {bracket_1}%**, **{bracket_1}% to {bracket_2}%**, and **> {bracket_2}%**.")
                 with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
                 with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
                 st.info(f"Dynamically splits the table into: '< {bracket_1}%', '{bracket_1}% to {bracket_2}%', and '> {bracket_2}%'.")
