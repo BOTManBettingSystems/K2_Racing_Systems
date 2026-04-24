@@ -609,7 +609,7 @@ else:
                             st.rerun()
 
     # =========================================================================
-    # 📊 PAGE 2: AI TOP 2 RESULTS
+    # 📊 PAGE 2: AI Top 2 RESULTS
     # =========================================================================
     elif page == "📊 AI Top 2 Results":
         if "perf_mode" not in st.session_state: st.session_state.perf_mode = "Live"
@@ -1153,9 +1153,6 @@ else:
                 with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
                 with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
                 st.info(f"Dynamically splits the breakdown table below into: **< {bracket_1}%**, **{bracket_1}% to {bracket_2}%**, and **> {bracket_2}%**.")
-                with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
-                with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
-                st.info(f"Dynamically splits the table into: '< {bracket_1}%', '{bracket_1}% to {bracket_2}%', and '> {bracket_2}%'.")
                 
                 st.markdown("---")
                 st.markdown("### 📊 Dynamic Table Grouping")
