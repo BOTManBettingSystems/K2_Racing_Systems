@@ -21,7 +21,6 @@ def log_performance(action_name):
     try:
         import psutil
         process = psutil.Process(os.getpid())
-        # Convert bytes to Megabytes
         mem_mb = process.memory_info().rss / (1024 * 1024)
         cpu_pct = psutil.cpu_percent(interval=None)
         
@@ -34,13 +33,12 @@ def log_performance(action_name):
                 f.write("Timestamp,Action,RAM_Used_MB,CPU_Percent\n")
             f.write(f"{timestamp},{action_name},{mem_mb:.1f},{cpu_pct:.1f}\n")
     except ImportError:
-        pass # Fails silently if psutil isn't installed yet
+        pass
 
 def log_login(role):
     log_file = "K2_login_log.csv"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Safely attempt to grab the user's IP Address
     client_ip = "Unknown"
     try:
         if hasattr(st, 'context') and hasattr(st.context, 'headers'):
@@ -55,43 +53,33 @@ def log_login(role):
         f.write(f"{timestamp},{role},{client_ip}\n")
         
 def check_password():
-    """Returns `True` if the user had a valid cookie or entered a correct password."""
-    # 1. Check if a valid 30-day cookie already exists
     auth_cookie = cookie_manager.get(cookie="k2_auth")
-    
-    # Grab passwords from Hugging Face environment (with a local secrets fallback)
     admin_p = os.environ.get("ADMIN_PASS", st.secrets.get("passwords", {}).get("admin", "fallback1"))
     guest_p = os.environ.get("GUEST_PASS", st.secrets.get("passwords", {}).get("guest", "fallback2"))
 
-    # 2. If the cookie says they are logged in, bypass the screen instantly
     if auth_cookie in ["admin_active", "guest_active"]:
         st.session_state["password_correct"] = True
         st.session_state["is_admin"] = (auth_cookie == "admin_active")
         return True
 
-    # 3. The logic that runs when the user hits "Enter" on the password box
     def password_entered():
         entered = st.session_state.get("password_input", "")
         if entered in [admin_p, guest_p]:
             st.session_state["password_correct"] = True
             st.session_state["is_admin"] = (entered == admin_p)
             
-            # --- LOG THE SUCCESSFUL LOGIN ---
             role = "Admin" if st.session_state["is_admin"] else "Guest"
             log_login(role)
             
-            # --- SET THE 30-DAY COOKIE ---
             cookie_val = "admin_active" if st.session_state["is_admin"] else "guest_active"
             expire_date = datetime.now() + timedelta(days=30)
             cookie_manager.set("k2_auth", cookie_val, expires_at=expire_date)
             
-            # Clear the input box from memory for security
             if "password_input" in st.session_state:
                 del st.session_state["password_input"]
         else:
             st.session_state["password_correct"] = False
 
-    # 4. If no valid cookie and no correct password yet, show the login screen
     if "password_correct" not in st.session_state:
         st.markdown("<h2 style='text-align: center; color: #002147;'>K² Racing Systems</h2>", unsafe_allow_html=True)
         st.text_input("Enter Password", type="password", on_change=password_entered, key="password_input")
@@ -108,7 +96,7 @@ if "show_admin_insights" not in st.session_state:
 @st.cache_resource(show_spinner=False)
 def load_all_data():
     try:
-        if not os.path.exists("DailyAIResults.zip"): return None, None, None, None, None, None, None, None, None
+        if not os.path.exists("DailyAIResults.zip"): return None, None, None, None, None, None, None, None, None, None
         
         with zipfile.ZipFile("DailyAIResults.zip", 'r') as z:
             csv_name = [f for f in z.namelist() if f.endswith('.csv')][0]
@@ -117,25 +105,17 @@ def load_all_data():
                 
         df_all.columns = df_all.columns.str.strip()
         
-        # --- SAFE MEMORY OPTIMIZATION BLOCK ---
         def optimize_memory(df):
-            # Safely shrink floats (decimals)
             for col in df.select_dtypes(include=['float64']).columns:
                 df[col] = pd.to_numeric(df[col], downcast='float')
-            
-            # Safely shrink integers (whole numbers)
             for col in df.select_dtypes(include=['int64']).columns:
                 df[col] = pd.to_numeric(df[col], downcast='integer')
-                
-            # Categorize repeating text strings
             for col in ['Course', 'Race Type', 'H/Cap', 'Price Bracket']:
                 if col in df.columns:
                     df[col] = df[col].astype('category')
-                    
             return df
         
         df_all = optimize_memory(df_all)
-        # --- END MEMORY OPTIMIZATION ---
         
         def clean_date(x):
             s = str(x).split('.')[0].strip()
@@ -170,22 +150,29 @@ def load_all_data():
             live_res_pool = df_all[df_all['Date_DT'] > split_date]
             df_live = pd.merge(ods_keys, live_res_pool, on=['Date_Key', 'Time', 'Course', 'Horse'], how='inner')
                 
+        # --- TWO-BRAIN ARCHITECTURE INTEGRATION ---
+        # 1. The Sorters (High Complexity)
         clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
         shadow_clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
+        # 2. The Pricer (Low Complexity / Calibrated)
+        cal_clf = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.05, max_depth=3, l2_regularization=15.0, min_samples_leaf=250, random_state=42)
         
         train_df = df_all[df_all['Fin Pos'] > 0].tail(230000)
+        
         clf.fit(train_df[feats], (train_df['Fin Pos'] == 1).astype(int))
         shadow_clf.fit(train_df[shadow_feats], (train_df['Fin Pos'] == 1).astype(int))
+        cal_clf.fit(train_df[feats], (train_df['Fin Pos'] == 1).astype(int))
+        
         gc.collect()
                 
         last_live = df_live['Date_DT'].max() if (df_live is not None and not df_live.empty) else datetime.now()
         first_hist = df_historic['Date_DT'].min() if not df_historic.empty else datetime(2024,1,1)
         
         log_performance("Full ML Retrain & History Load")
-        return clf, feats, shadow_clf, shadow_feats, df_historic, df_live, last_live, first_hist, df_all
-    except Exception as e: return None, str(e), None, None, None, None, None, None, None
+        return clf, feats, shadow_clf, shadow_feats, cal_clf, df_historic, df_live, last_live, first_hist, df_all
+    except Exception as e: return None, str(e), None, None, None, None, None, None, None, None
 
-def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feats=None, is_live_today=False):
+def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feats=None, _cal_model=None, is_live_today=False):
     b_df = _df.copy()
     b_df.columns = b_df.columns.str.strip()
     
@@ -203,7 +190,6 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     vault_file = "K2_Prediction_Vault.csv"
     vault_keys = ['Date_Key', 'Time', 'Course', 'Horse']
 
-    # Standardize keys for a bulletproof merge
     if 'Time' in b_df.columns: b_df['Time'] = b_df['Time'].astype(str).str.split('.').str[0].str.strip()
     if 'Course' in b_df.columns: b_df['Course'] = b_df['Course'].astype(str).str.strip().str.title()
     if 'Horse' in b_df.columns: b_df['Horse'] = b_df['Horse'].astype(str).str.strip().str.title()
@@ -215,7 +201,6 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         vault_df['Course'] = vault_df['Course'].astype(str).str.strip().str.title()
         vault_df['Horse'] = vault_df['Horse'].astype(str).str.strip().str.title()
         
-        # Merge existing frozen probabilities
         b_df = pd.merge(b_df, vault_df[vault_keys + ['ML_Prob', 'Shadow_Prob']], on=vault_keys, how='left')
         b_df['ML_Prob'] = pd.to_numeric(b_df['ML_Prob'], errors='coerce')
         b_df['Shadow_Prob'] = pd.to_numeric(b_df['Shadow_Prob'], errors='coerce')
@@ -223,7 +208,7 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['ML_Prob'] = np.nan
         b_df['Shadow_Prob'] = np.nan
 
-    # --- CALCULATE MISSING AI PREDICTIONS ON THE FLY ---
+    # --- CALCULATE MISSING AI PREDICTIONS ---
     missing_mask = b_df['ML_Prob'].isna()
     if missing_mask.any():
         missing_df = b_df[missing_mask].copy()
@@ -238,11 +223,9 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         else:
             b_df.loc[missing_mask, 'Shadow_Prob'] = 0
             
-    # Failsafe if Shadow_Prob somehow wasn't created
     if 'Shadow_Prob' not in b_df.columns:
         b_df['Shadow_Prob'] = 0
 
-    # --- CALCULATE RANKS (ALWAYS LIVE SO THEY ADAPT TO NON-RUNNERS) ---
     if is_live_today:
         b_df['Pure Rank'] = b_df.groupby(['Time', 'Course'])['Shadow_Prob'].rank(ascending=False, method='min')
     else:
@@ -293,10 +276,25 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     b_df['Price Bracket'] = pd.cut(b_df['7:30AM Price'], bins=bins, labels=labels, right=True)
     b_df['Price Bracket'] = b_df['Price Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     
+    # --- TRUE VALUE PRICING (THE PRICER BRAIN) ---
+    if _cal_model is not None:
+        b_df['True_AI_Prob'] = _cal_model.predict_proba(b_df[feats].fillna(0))[:, 1]
+        b_df['True_Value_Price'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
+        b_df['Market_Price'] = np.where(b_df['BSP'] > 0, b_df['BSP'], b_df['7:30AM Price'])
+        b_df['Value_Edge_Perc'] = ((b_df['Market_Price'] / b_df['True_Value_Price']) - 1) * 100
+        
+        v_bins = [-np.inf, 0.0, 10.0, np.inf]
+        v_labels = ['1. Negative Edge (< 0%)', '2. Fair Value (0% to 10%)', '3. Deep Value (> 10%)']
+        b_df['Edge Bracket'] = pd.cut(b_df['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
+        b_df['Edge Bracket'] = b_df['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
+    else:
+        b_df['Value_Edge_Perc'] = 0.0
+        b_df['Edge Bracket'] = 'Unknown'
+        
     return b_df
 
 @st.cache_data(show_spinner=False)
-def load_daily_data(_model, feats, _shadow_model, shadow_feats):
+def load_daily_data(_model, feats, _shadow_model, shadow_feats, _cal_model):
     try:
         df_today = pd.read_csv("DailyAIPredictionsData.csv") if os.path.exists("DailyAIPredictionsData.csv") else None
         if df_today is not None and not df_today.empty:
@@ -310,7 +308,7 @@ def load_daily_data(_model, feats, _shadow_model, shadow_feats):
 
             missing_feats = [f for f in feats if f not in df_today.columns]
             if not missing_feats and _model is not None:
-                df_today = prep_system_builder_data(df_today, _model, feats, _shadow_model, shadow_feats, is_live_today=True)
+                df_today = prep_system_builder_data(df_today, _model, feats, _shadow_model, shadow_feats, _cal_model, is_live_today=True)
         
         log_performance("Daily Data Processed")
         return df_today
@@ -318,9 +316,9 @@ def load_daily_data(_model, feats, _shadow_model, shadow_feats):
         return None
 
 @st.cache_resource(show_spinner=False)
-def get_prepped_history(_df, _model, feats, _shadow_model, shadow_feats):
+def get_prepped_history(_df, _model, feats, _shadow_model, shadow_feats, _cal_model):
     if _df is None or _df.empty: return None
-    return prep_system_builder_data(_df, _model, feats, _shadow_model, shadow_feats, is_live_today=False)
+    return prep_system_builder_data(_df, _model, feats, _shadow_model, shadow_feats, _cal_model, is_live_today=False)
 
 @st.cache_data(show_spinner=False)
 def load_ods_master():
@@ -328,24 +326,16 @@ def load_ods_master():
         return pd.read_excel("K2SystemsMaster.ods", engine="odf")
     return None
 
-# --- 4. CSS (Sidebar Recovery & Mobile Optimization) ---
+# --- 4. CSS ---
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem !important; }
-    
-    /* HIDE STREAMLIT BRANDING BUT KEEP THE SIDEBAR BUTTON FUNCTIONAL */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header[data-testid="stHeader"] { background-color: rgba(0,0,0,0) !important; color: #1a3a5f !important; }
-    
-    /* STYLE THE SIDEBAR OPENER BUTTON SO IT IS EASY TO SEE */
     button[data-testid="stSidebarCollapse"] { background-color: #1a3a5f !important; color: white !important; border-radius: 5px !important; margin-left: 10px !important; }
-
-    /* MOBILE & TABLET SCROLLING OPTIMIZATION */
     .main .block-container { overflow-x: hidden; -webkit-overflow-scrolling: touch; }
     .k2-table-container { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
-    
-    /* TABLE STYLING */
     .k2-table { border-collapse: collapse !important; width: 100% !important; min-width: 850px !important; table-layout: fixed !important; margin-bottom: 0px !important; }
     .k2-table th, .k2-table td { border: 1px solid #444 !important; padding: 3px 4px !important; font-size: 12.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
     .k2-table td.r1 { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
@@ -363,9 +353,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. EXECUTION & HEADER ---
-model, feats, shadow_model, shadow_feats, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
-df_today = load_daily_data(model, feats, shadow_model, shadow_feats)
-df_all_prepped = get_prepped_history(df_all, model, feats, shadow_model, shadow_feats)
+model, feats, shadow_model, shadow_feats, cal_model, df_hist, df_live, last_live_date, first_res_date, df_all = load_all_data()
+df_today = load_daily_data(model, feats, shadow_model, shadow_feats, cal_model)
+df_all_prepped = get_prepped_history(df_all, model, feats, shadow_model, shadow_feats, cal_model)
 
 if 'expanded_races' not in st.session_state: st.session_state.expanded_races = set()
 
@@ -420,12 +410,9 @@ def prep_dashboard_data(_df, _model, feats, perf_mode, d_start, d_end, p_min, p_
     return res_data
 
 
-# --- CSV CLEANER HELPER ---
 def clean_csv_df(df_in):
-    """Rounds all float columns to 2 decimal places before CSV export, excluding probability columns."""
     if df_in is None or df_in.empty: return df_in
     df_out = df_in.copy()
-    # Find all decimal columns but exclude any that contain 'Prob' in their name
     float_cols = [c for c in df_out.select_dtypes(include=['float', 'float32', 'float64']).columns if 'Prob' not in c]
     df_out[float_cols] = df_out[float_cols].round(2)
     return df_out
@@ -435,9 +422,6 @@ def clean_csv_df(df_in):
 # VIEW CONTROLLER
 # -------------------------------------------------------------------------
 
-# =========================================================================
-# 🛡️ ADMIN ONLY: INSIGHTS VIEW
-# =========================================================================
 if st.session_state.get("is_admin") and st.session_state.get("show_admin_insights"):
     st.header("🔍 Admin Data Insights (Multi-Factor Analysis)")
     st.markdown("Combine multiple data elements to discover highly profitable 'Golden Rules' hidden in your historical data.")
@@ -456,10 +440,9 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                 index=0
             )
         with i_col3:
-            min_bets = st.number_input("Minimum Bets (Sample Size):", min_value=5, max_value=2000, value=25, step=5,
-                                       help="Increase this to filter out wild outliers and find consistent trends.")
+            min_bets = st.number_input("Minimum Bets (Sample Size):", min_value=5, max_value=2000, value=25, step=5)
         
-        analysis_cols = ['Rank', 'Comb. Rank', 'Speed Rank', 'Race Rank', 'No. of Top', 'Primary Rank', 'Form Rank', 'Class', 'Class Move', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'MSAI Rank', 'Price Bracket', 'Pure Rank']
+        analysis_cols = ['Rank', 'Comb. Rank', 'Speed Rank', 'Race Rank', 'No. of Top', 'Primary Rank', 'Form Rank', 'Class', 'Class Move', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'MSAI Rank', 'Price Bracket', 'Pure Rank', 'Edge Bracket']
         avail_cols = [c for c in analysis_cols if c in ins_df.columns]
         
         selected_factors = st.multiselect("Select Factors to Combine (Choose 1 to 4):", avail_cols, default=['No. of Top', 'Speed Rank'])
@@ -497,19 +480,13 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                 if target_metric == "Logical Grouping (By Factor)":
                     ascending_sorts = []
                     for factor in selected_factors:
-                        if factor == 'No. of Top':
-                            ascending_sorts.append(False) 
-                        else:
-                            ascending_sorts.append(True)  
+                        if factor == 'No. of Top': ascending_sorts.append(False) 
+                        else: ascending_sorts.append(True)  
                     grp = grp.sort_values(by=selected_factors, ascending=ascending_sorts)
                 else:
                     sort_map = {
-                        "Win P/L": "Profit",
-                        "Win ROI (%)": "Win ROI (%)",
-                        "Win S/R (%)": "Strike Rate (%)",
-                        "Place P/L": "Place_Profit",
-                        "Place ROI (%)": "Place ROI (%)",
-                        "Place S/R (%)": "Place SR (%)"
+                        "Win P/L": "Profit", "Win ROI (%)": "Win ROI (%)", "Win S/R (%)": "Strike Rate (%)",
+                        "Place P/L": "Place_Profit", "Place ROI (%)": "Place ROI (%)", "Place S/R (%)": "Place SR (%)"
                     }
                     sort_col = sort_map.get(target_metric, 'Profit')
                     grp = grp.sort_values(by=sort_col, ascending=False).head(100)
@@ -526,22 +503,17 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                     <thead><tr style="background-color: #1a3a5f; color: white;">
                 """
                 
-                for factor in selected_factors:
-                    html_table += f"<th>{factor}</th>"
-                    
+                for factor in selected_factors: html_table += f"<th>{factor}</th>"
                 html_table += """
                         <th class="divider">Total Bets</th><th>Wins</th><th>Win P/L</th><th>Win S/R</th><th>Win ROI</th>
                         <th class="divider">Places</th><th>Plc P/L</th><th>Plc S/R</th><th>Total P/L</th>
                     </tr></thead><tbody>
                 """
-                
                 for _, r in grp.iterrows():
                     html_table += "<tr>"
-                    
                     for factor in selected_factors:
                         val = r[factor]
-                        if isinstance(val, float):
-                            val = int(val) if val.is_integer() else f"{val:.1f}"
+                        if isinstance(val, float): val = int(val) if val.is_integer() else f"{val:.1f}"
                         html_table += f"<td style='color:#1a3a5f; font-weight:bold;'>{val}</td>"
                         
                     p_color = "#2e7d32" if r['Profit'] > 0 else "#d32f2f"
@@ -550,25 +522,18 @@ if st.session_state.get("is_admin") and st.session_state.get("show_admin_insight
                     t_color = "#2e7d32" if r['Total P/L'] > 0 else "#d32f2f"
                         
                     html_table += f"""
-                        <td class="divider">{int(r['Bets'])}</td>
-                        <td>{int(r['Wins'])}</td>
-                        <td style="color:{p_color}; font-weight:bold;">£{r['Profit']:.2f}</td>
-                        <td>{r['Strike Rate (%)']:.1f}%</td>
+                        <td class="divider">{int(r['Bets'])}</td><td>{int(r['Wins'])}</td>
+                        <td style="color:{p_color}; font-weight:bold;">£{r['Profit']:.2f}</td><td>{r['Strike Rate (%)']:.1f}%</td>
                         <td style="color:{r_color}; font-weight:bold;">{r['Win ROI (%)']:.1f}%</td>
-                        <td class="divider">{int(r['Places'])}</td>
-                        <td style="color:{pp_color}; font-weight:bold;">£{r['Place_Profit']:.2f}</td>
-                        <td>{r['Place SR (%)']:.1f}%</td>
-                        <td style="color:{t_color}; font-weight:bold;">£{r['Total P/L']:.2f}</td>
+                        <td class="divider">{int(r['Places'])}</td><td style="color:{pp_color}; font-weight:bold;">£{r['Place_Profit']:.2f}</td>
+                        <td>{r['Place SR (%)']:.1f}%</td><td style="color:{t_color}; font-weight:bold;">£{r['Total P/L']:.2f}</td>
                     </tr>"""
                 html_table += "</tbody></table></div>"
                 st.markdown(html_table, unsafe_allow_html=True)
-            else:
-                st.info(f"No combinations found with at least {min_bets} bets.")
-    else:
-        st.warning("No data available.")
+            else: st.info(f"No combinations found with at least {min_bets} bets.")
+    else: st.warning("No data available.")
 
 else:
-    # --- NORMAL DASHBOARD ---
     st.sidebar.markdown("### 🧭 Main Menu")
     page = st.sidebar.radio(
         "Select an Option:",
@@ -580,50 +545,40 @@ else:
     # =========================================================================
     if page == "📅 Daily Predictions":
         st.header("📅 Daily Top 2 Predictions")
-        
         if df_today is not None and not df_today.empty:
             if 'ML_Prob' in df_today.columns:
                 df_p = df_today.copy()
                 df_p.columns = df_p.columns.str.strip()
-                
                 df_p['Rank'] = df_p.groupby(['Date', 'Time', 'Course'])['ML_Prob'].rank(ascending=False, method='min')
                 
                 if 'No. of Top' in df_p.columns:
                     df_p['No. of Top'] = pd.to_numeric(df_p['No. of Top'], errors='coerce').fillna(0)
                     df_p['Max_Top'] = df_p.groupby(['Date', 'Time', 'Course'])['No. of Top'].transform('max')
                     df_p['isM'] = (df_p['No. of Top'] == df_p['Max_Top']) & (df_p['No. of Top'] > 0)
-                else:
-                    df_p['isM'] = False
+                else: df_p['isM'] = False
                 
                 df_p = df_p.sort_values(by=['Date', 'Time', 'Course', 'Rank'])
                 
                 ideal_csv_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'ML_Prob', 'Rank', 'No. of Top']
                 existing_csv_cols = [c for c in ideal_csv_cols if c in df_p.columns]
                 csv_out = df_p[df_p['Rank'] <= 2][existing_csv_cols].copy()
-                
-                # --- ROUND NUMBERS BEFORE EXPORT ---
                 csv_out = clean_csv_df(csv_out)
                 
                 timestamp = datetime.now().strftime('%d%m%y_%H%M%S')
                 file_name = f"K2_AIPredictions_{timestamp}.csv"
                 
                 col_dl, col_spacer, col_col = st.columns([1, 3, 0.5])
-                with col_dl:
-                    st.download_button("Download CSV", csv_out.to_csv(index=False), file_name)
+                with col_dl: st.download_button("Download CSV", csv_out.to_csv(index=False), file_name)
                 with col_col:
                     if st.button("Collapse All"): 
                         st.session_state.expanded_races = set()
                         st.rerun()
 
                 w = ["10%", "10%", "12%", "31%", "12%", "12%", "8%", "5%"]
-                
                 h_col1, h_col2 = st.columns([19, 1], gap="small")
                 with h_col1:
                     header = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><thead><tr>'
-                    header += '<th style="width:'+w[0]+';" class="left-head">Date</th><th style="width:'+w[1]+';" class="left-head">Time</th>'
-                    header += '<th style="width:'+w[2]+';" class="left-head">Course</th><th style="width:'+w[3]+';" class="left-head">Horse</th>'
-                    header += '<th style="width:'+w[4]+';" class="left-head">Price</th><th style="width:'+w[5]+';" class="left-head">AI Prob</th>'
-                    header += '<th style="width:'+w[6]+';" class="left-head">Rank</th><th style="width:'+w[7]+';" class="left-head">Tops</th>'
+                    header += f'<th style="width:{w[0]};" class="left-head">Date</th><th style="width:{w[1]};" class="left-head">Time</th><th style="width:{w[2]};" class="left-head">Course</th><th style="width:{w[3]};" class="left-head">Horse</th><th style="width:{w[4]};" class="left-head">Price</th><th style="width:{w[5]};" class="left-head">AI Prob</th><th style="width:{w[6]};" class="left-head">Rank</th><th style="width:{w[7]};" class="left-head">Tops</th>'
                     header += '</tr></thead></table></div>'
                     st.markdown(header, unsafe_allow_html=True)
 
@@ -633,7 +588,6 @@ else:
                     rows = group if is_expanded else group[group['Rank'] <= 2]
                     
                     st.markdown('<div style="margin-top:2px;"></div>', unsafe_allow_html=True)
-                    
                     t_col, b_col = st.columns([19, 1], gap="small")
                     with t_col:
                         html = '<div style="overflow-x: auto; width: 100%;"><table class="k2-table" style="min-width: 800px;"><tbody>'
@@ -641,23 +595,13 @@ else:
                             row_cls = "mauve-row" if r['isM'] else ""
                             rv = int(r['Rank'])
                             r_cls = "r1" if rv==1 else "r2" if rv==2 else "r3" if rv==3 else ""
-                            html += '<tr class="'+row_cls+'">'
-                            html += '<td style="width:'+w[0]+';" class="center-text">'+str(r["Date"])+'</td>'
-                            html += '<td style="width:'+w[1]+';" class="center-text">'+str(r["Time"])+'</td>'
-                            html += '<td style="width:'+w[2]+';" class="left-text">'+str(r["Course"])+'</td>'
-                            html += '<td style="width:'+w[3]+';" class="left-text"><b>'+str(r["Horse"])+'</b></td>'
-                            html += '<td style="width:'+w[4]+';" class="center-text">'+str(round(r["7:30AM Price"], 2))+'</td>'
-                            html += '<td style="width:'+w[5]+';" class="center-text">'+str(round(r["ML_Prob"], 4))+'</td>'
-                            html += '<td style="width:'+w[6]+';" class="'+r_cls+' center-text">'+str(rv)+'</td>'
-                            html += '<td style="width:'+w[7]+';" class="center-text">'+str(int(r["No. of Top"]))+'</td>'
-                            html += '</tr>'
+                            html += f'<tr class="{row_cls}"><td style="width:{w[0]};" class="center-text">{r["Date"]}</td><td style="width:{w[1]};" class="center-text">{r["Time"]}</td><td style="width:{w[2]};" class="left-text">{r["Course"]}</td><td style="width:{w[3]};" class="left-text"><b>{r["Horse"]}</b></td><td style="width:{w[4]};" class="center-text">{round(r["7:30AM Price"], 2)}</td><td style="width:{w[5]};" class="center-text">{round(r["ML_Prob"], 4)}</td><td style="width:{w[6]};" class="{r_cls} center-text">{rv}</td><td style="width:{w[7]};" class="center-text">{int(r["No. of Top"])}</td></tr>'
                         st.markdown(html + '</tbody></table></div>', unsafe_allow_html=True)
                     with b_col:
                         if st.button("-" if is_expanded else "+", key="btn_"+race_id):
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
                             else: st.session_state.expanded_races.add(race_id)
                             st.rerun()
-
 
     # =========================================================================
     # 📊 PAGE 2: AI TOP 2 RESULTS
@@ -681,11 +625,7 @@ else:
             f_start = first_res_date.date() if first_res_date else datetime(2024,1,1)
             d_range = cd.date_input("Historical Range (To 8th March)", [f_start, datetime(2026, 3, 8).date()], max_value=datetime(2026, 3, 8).date())
         
-        price_options = {
-            "All": (0.0, 1000.0), "Up to 5": (0.0, 5.0), "5 to 10": (5.01, 10.0),
-            "10 to 15": (10.01, 15.0), "15 to 25": (15.01, 25.0), "25 to 50": (25.01, 50.0),
-            "50 to 100": (50.01, 100.0), "> 100": (100.01, 1000.0)
-        }
+        price_options = {"All": (0.0, 1000.0), "Up to 5": (0.0, 5.0), "5 to 10": (5.01, 10.0), "10 to 15": (10.01, 15.0), "15 to 25": (15.01, 25.0), "25 to 50": (25.01, 50.0), "50 to 100": (50.01, 100.0), "> 100": (100.01, 1000.0)}
         sel_range = st.radio("Price Range Quick-Select:", list(price_options.keys()), index=0, horizontal=True)
         start_p, end_p = price_options[sel_range]
         p_range = st.slider("Fine-Tune Price Filter", 0.0, 1000.0, (float(start_p), float(end_p)))
@@ -760,19 +700,15 @@ else:
     # =========================================================================
     elif page == "🧠 General Systems":
         st.header("🧠 General Systems")
-        
         smart_view = st.radio("Select View:", ["📅 Today's Qualifiers", "📊 Live Performance (Master file)"], horizontal=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
         if smart_view == "📅 Today's Qualifiers":
             s_col, p_col = st.columns(2)
-            with s_col:
-                sort_pref = st.radio("Sort Qualifiers By:", ["System Name (Morning Review)", "Time (Live Racing)"], horizontal=True)
+            with s_col: sort_pref = st.radio("Sort Qualifiers By:", ["System Name (Morning Review)", "Time (Live Racing)"], horizontal=True)
             with p_col:
-                if st.session_state.get("is_admin"):
-                    pool_choice = st.radio("System Pool (Admin Only):", ["Public", "Admin Secret", "Combined"], horizontal=True)
-                else:
-                    pool_choice = "Public"
+                if st.session_state.get("is_admin"): pool_choice = st.radio("System Pool (Admin Only):", ["Public", "Admin Secret", "Combined"], horizontal=True)
+                else: pool_choice = "Public"
             
             st.markdown("<br>", unsafe_allow_html=True)
             try:
@@ -782,13 +718,11 @@ else:
                     else:
                         all_today_picks = []
                         t_df = df_today
-
                         saved_systems = {}
                         if pool_choice in ["Public", "Combined"] and os.path.exists("K2_user_systems.json"):
                             with open("K2_user_systems.json", "r") as f:
                                 try: saved_systems.update(json.load(f))
                                 except: pass
-                                
                         if pool_choice in ["Admin Secret", "Combined"] and os.path.exists("K2_admin_systems.json"):
                             with open("K2_admin_systems.json", "r") as f:
                                 try: saved_systems.update(json.load(f))
@@ -806,7 +740,6 @@ else:
                                 
                                 ai_filt = s_data.get('ai_rank_filter', "Any")
                                 if ai_filt == "Any" and s_data.get('rank_1_only', False): ai_filt = "AI Rank 1 Only"
-                                    
                                 if ai_filt == "AI Rank 1 Only": s_mask &= (t_df['Rank'] == 1)
                                 elif ai_filt == "Top 2 Only": s_mask &= (t_df['Rank'] <= 2)
                                 elif ai_filt == "NOT AI Rank 1": s_mask &= (t_df['Rank'] > 1)
@@ -867,12 +800,9 @@ else:
 
                         if all_today_picks:
                             final_df = pd.concat(all_today_picks, ignore_index=True)
+                            if pool_choice == "Public": ideal_base_cols = ["Date", "Time", "Course", "Horse", "7:30AM Price", "ML_Prob", "Rank", "No. of Top", "System Name"]
+                            else: ideal_base_cols = ["Date", "Time", "Course", "Horse", "7:30AM Price", "ML_Prob", "Rank", "Primary Rank", "Pure Rank", "No. of Top", "System Name"]
                             
-                            if pool_choice == "Public":
-                                ideal_base_cols = ["Date", "Time", "Course", "Horse", "7:30AM Price", "ML_Prob", "Rank", "No. of Top", "System Name"]
-                            else:
-                                ideal_base_cols = ["Date", "Time", "Course", "Horse", "7:30AM Price", "ML_Prob", "Rank", "Primary Rank", "Pure Rank", "No. of Top", "System Name"]
-                                
                             existing_cols = [c for c in ideal_base_cols if c in final_df.columns]
                             final_df = final_df[existing_cols]
                             
@@ -883,10 +813,8 @@ else:
                             palette = ["#e8f4f8", "#f8e8e8", "#e8f8e8", "#f8f4e8", "#f4e8f8", "#e8f8f8"]
                             sys_color_map = {sys: palette[i % len(palette)] for i, sys in enumerate(unique_systems)}
 
-                            # --- ROUND NUMBERS BEFORE EXPORT ---
                             clean_final_df = clean_csv_df(final_df)
                             csv_data = clean_final_df.to_csv(index=False).encode('utf-8')
-                            
                             timestamp = datetime.now().strftime('%d%m%y_%H%M%S')
                             dl_label = "📥 Download Admin Picks to CSV" if pool_choice != "Public" else "📥 Download General Picks to CSV"
                             st.download_button(dl_label, csv_data, f"K2_{pool_choice}_Systems_{timestamp}.csv", "text/csv", key="dl_smart")
@@ -898,8 +826,7 @@ else:
 
                             for _, row in final_df.iterrows():
                                 bg_color = sys_color_map.get(row.get("System Name"), "")
-                                text_color = "black"
-                                row_style = f"background-color: {bg_color}; color: {text_color};" if bg_color else ""
+                                row_style = f"background-color: {bg_color}; color: black;" if bg_color else ""
                                 html_table += f"<tr style='{row_style}'>"
                                 for col in existing_cols:
                                     val = row[col]
@@ -914,12 +841,10 @@ else:
                             st.markdown(html_table, unsafe_allow_html=True)
                         else: st.info(f"No systems selections found today for the '{pool_choice}' pool.")
                 else: st.info("No data available for today's races.")
-
             except Exception as e: st.error(f"Error loading General Systems: {e}")
                 
         else:
             st.markdown("### 📈 Live Performance (Master file)")
-            
             if st.session_state.get("is_admin"):
                 perf_file_choice = st.radio("Select Master File to Analyze:", ["Public (K2SystemsMaster.ods)", "Admin (K2AdminMaster.ods)"], horizontal=True)
                 target_ods = "K2AdminMaster.ods" if "Admin" in perf_file_choice else "K2SystemsMaster.ods"
@@ -942,17 +867,12 @@ else:
                             return s[-6:] if len(s) > 6 else s
                             
                         df_smart_master['Date_Key'] = df_smart_master['Date'].apply(clean_d)
-                        
-                        # --- BULLETPROOF MERGE PREP ---
-                        # 1. Strip the silent ".0" floats that Pandas adds to the ODS file
                         df_smart_master['Time'] = df_smart_master['Time'].astype(str).str.split('.').str[0].str.strip()
                         df_a = df_all.copy()
                         df_a['Time'] = df_a['Time'].astype(str).str.split('.').str[0].str.strip()
                         
-                        # 2. Force strict Title Case to ignore upstream capitalization glitches
                         df_smart_master['Course'] = df_smart_master['Course'].astype(str).str.strip().str.title()
                         df_a['Course'] = df_a['Course'].astype(str).str.strip().str.title()
-                        
                         df_smart_master['Horse'] = df_smart_master['Horse'].astype(str).str.strip().str.title()
                         df_a['Horse'] = df_a['Horse'].astype(str).str.strip().str.title()
                         
@@ -1032,7 +952,7 @@ else:
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
 
-# =========================================================================
+    # =========================================================================
     # 🛠️ PAGE 4: SYSTEM BUILDER
     # =========================================================================
     elif page == "🛠️ System Builder":
@@ -1070,13 +990,13 @@ else:
             
             defaults = {
                 'ui_months': all_months, 'ui_courses': [], 'ui_race_types': rt_opts, 'ui_hcap_types': hcap_opts,
-                'ui_price_min': 0.0, 'ui_price_max': 1000.0, 'ui_prob_gap': -100.0,
+                'ui_price_min': 0.0, 'ui_price_max': 1000.0, 'ui_prob_gap': -100.0, 'ui_min_edge': -100.0,
                 'ui_rnrs': rnr_opts, 'ui_classes': class_opts, 'ui_cm': cm_opts,
                 'ui_ai_rank_filter': "Any", 'ui_sex': sex_opts, 'ui_value_filter': "Off",
                 'ui_irish_f': "Any", 'ui_age_range': (1, 20),
                 'ui_comb_f': "Any", 'ui_comp_f': "Any", 'ui_speed_f': "Any", 'ui_race_f': "Any", 'ui_primary_f': "Any",
                 'ui_msai_f': "Any", 'ui_prb_f': "Any", 'ui_tprb_f': "Any", 'ui_jprb_f': "Any", 'ui_form_f': "Any", 'ui_pure_f': "Any",
-                'ui_group_cols': ['Race Type', 'H/Cap', 'Price Bracket']
+                'ui_group_cols': ['Edge Bracket', 'Race Type', 'H/Cap']
             }
             
             if st.session_state.get('force_reset', False):
@@ -1094,6 +1014,7 @@ else:
                 st.session_state['ui_price_min'] = float(sys_data.get('price_min', 0.0))
                 st.session_state['ui_price_max'] = float(sys_data.get('price_max', 1000.0))
                 st.session_state['ui_prob_gap'] = float(sys_data.get('min_prob_gap', -1.0)) * 100
+                st.session_state['ui_min_edge'] = float(sys_data.get('min_edge_perc', -100.0))
                 st.session_state['ui_rnrs'] = sys_data.get('rnrs', rnr_opts)
                 st.session_state['ui_classes'] = [c for c in sys_data.get('classes', []) if c in class_opts]
                 st.session_state['ui_cm'] = [c for c in sys_data.get('cm', []) if c in cm_opts]
@@ -1166,7 +1087,10 @@ else:
                     p_col1, p_col2 = st.columns(2)
                     with p_col1: price_min = st.number_input("Min Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_min', 0.0)), step=0.5)
                     with p_col2: price_max = st.number_input("Max Price (7:30AM)", 0.0, 1000.0, value=float(st.session_state.get('ui_price_max', 1000.0)), step=0.5)
-                    min_prob_gap = st.number_input("Minimum Prob Gap (%)", -100.0, 50.0, value=float(st.session_state.get('ui_prob_gap', -100.0)), step=0.5) / 100
+                    
+                    e_col1, e_col2 = st.columns(2)
+                    with e_col1: min_prob_gap = st.number_input("Min Prob Gap (%)", -100.0, 50.0, value=float(st.session_state.get('ui_prob_gap', -100.0)), step=0.5) / 100
+                    with e_col2: min_edge_perc = st.number_input("Min Value Edge %", -100.0, 200.0, value=float(st.session_state.get('ui_min_edge', -100.0)), step=5.0)
                 with c3:
                     selected_rnrs = st.multiselect("No. of Runners", rnr_opts, default=st.session_state.get('ui_rnrs', rnr_opts))
                     if class_opts:
@@ -1212,7 +1136,7 @@ else:
                 
                 st.markdown("---")
                 st.markdown("### 📊 Dynamic Table Grouping")
-                groupable_cols = ['Race Type', 'H/Cap', 'Price Bracket', 'Course', 'No. of Rnrs', 'Class', 'Class Move', 'Sex', 'Age', 'Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'Primary Rank', 'MSAI Rank', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'Form Rank', 'Pure Rank', 'Irish?']
+                groupable_cols = ['Edge Bracket', 'Race Type', 'H/Cap', 'Price Bracket', 'Course', 'No. of Rnrs', 'Class', 'Class Move', 'Sex', 'Age', 'Comb. Rank', 'Comp. Rank', 'Speed Rank', 'Race Rank', 'Primary Rank', 'MSAI Rank', 'PRB Rank', 'Trainer PRB Rank', 'Jockey PRB Rank', 'Form Rank', 'Pure Rank', 'Irish?']
                 groupable_cols = [c for c in groupable_cols if c in b_df.columns]
                 
                 groupable_cols.insert(0, 'Month/Year')
@@ -1220,7 +1144,7 @@ else:
                 ui_group_cols = st.multiselect(
                     "Select up to 3 factors to group the breakdown table by:", 
                     options=groupable_cols, 
-                    default=st.session_state.get('ui_group_cols', ['Race Type', 'H/Cap', 'Price Bracket']),
+                    default=st.session_state.get('ui_group_cols', ['Edge Bracket', 'Race Type', 'H/Cap']),
                     max_selections=3
                 )
                 
@@ -1271,7 +1195,7 @@ else:
                     if st.button("Generate JSON Code", use_container_width=True):
                         if new_sys_name:
                             sys_data = {
-                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "ai_rank_filter": ai_rank_filter, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
+                                "race_types": selected_race_types, "hcap_types": selected_hcap, "price_min": price_min, "price_max": price_max, "min_prob_gap": min_prob_gap, "min_edge_perc": min_edge_perc, "rnrs": selected_rnrs, "classes": selected_classes, "cm": selected_cm, "sex": selected_sex, "courses": selected_courses, "ai_rank_filter": ai_rank_filter, "value_filter": value_filter, "irish": irish_f, "age_min": age_min, "age_max": age_max, "months": selected_months,
                                 "ranks": {"Comb. Rank": comb_f, "Comp. Rank": comp_f, "Speed Rank": speed_f, "Race Rank": race_f, "Primary Rank": primary_f, "MSAI Rank": msai_f, "PRB Rank": prb_f, "Trainer PRB Rank": tprb_f, "Jockey PRB Rank": jprb_f, "Form Rank": form_f, "Pure Rank": pure_f}
                             }
                             st.code(f'"{new_sys_name}": {json.dumps(sys_data, indent=4)}', language="json")
@@ -1312,7 +1236,7 @@ else:
                 st.session_state['ui_group_cols'] = ui_group_cols
                 st.success("✅ System recalculated instantly!")
 
-                mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap))
+                mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap) & (b_df['Value_Edge_Perc'] >= min_edge_perc))
                 
                 if len(date_range) == 2: mask = mask & (b_df['Date_DT'].dt.date >= date_range[0]) & (b_df['Date_DT'].dt.date <= date_range[1])
                 elif len(date_range) == 1: mask = mask & (b_df['Date_DT'].dt.date == date_range[0])
@@ -1407,7 +1331,6 @@ else:
                     # --- ADVANCED METRICS CALCULATION ---
                     df_chrono = df_filtered.sort_values(by=['Date_DT', 'Time'])
                     
-                    # LLR & Drawdown
                     df_chrono['Is_Loss'] = (df_chrono['Win P/L <2%'] < 0).astype(int)
                     loss_blocks = df_chrono['Is_Loss'] * (df_chrono['Is_Loss'].groupby((df_chrono['Is_Loss'] != df_chrono['Is_Loss'].shift()).cumsum()).cumcount() + 1)
                     llr = loss_blocks.max() if not loss_blocks.empty else 0
@@ -1418,7 +1341,6 @@ else:
                     df_chrono['Drawdown'] = df_chrono['Bankroll'] - df_chrono['Peak']
                     max_dd = abs(df_chrono['Drawdown'].min()) if not df_chrono['Drawdown'].empty else 0.0
 
-                    # A/E & Chi Score
                     market_prices = np.where(df_chrono['BSP'] > 0, df_chrono['BSP'], df_chrono['7:30AM Price'])
                     valid_prices = market_prices[market_prices > 1.0]
                     expected_wins = np.sum(1.0 / valid_prices) if len(valid_prices) > 0 else 0.0
@@ -1434,16 +1356,13 @@ else:
                     else:
                         chi_score = 0.0
 
-                    # Sortino Ratio (Corrected)
                     returns = df_chrono['Staked_PL']
                     mean_return = returns.mean() if not returns.empty else 0.0
                     
-                    # Correct downside deviation: sum of squared negative returns divided by TOTAL bets
                     downside_sq = np.where(returns < 0, returns**2, 0)
                     downside_dev = np.sqrt(np.mean(downside_sq)) if len(returns) > 0 else 0.0
                     
                     sortino = (mean_return / downside_dev) if downside_dev > 0 else (99.99 if mean_return > 0 else 0.0)
-                    # Ulcer Index
                     ulcer_index = np.sqrt(np.mean(df_chrono['Drawdown']**2)) if not df_chrono['Drawdown'].empty else 0.0
 
                     win_sr = (breakdown['Wins'].sum() / total_bets_for_roi * 100) if total_bets_for_roi > 0 else 0.0
@@ -1472,7 +1391,7 @@ else:
                     if df_today is not None and not df_today.empty:
                         t_df = df_today
                         
-                        t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap))
+                        t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap) & (t_df['Value_Edge_Perc'] >= min_edge_perc))
                         
                         if len(selected_months) < 12:
                             t_mask = t_mask & t_df['Date_DT'].dt.month.isin(sel_m_nums)
@@ -1581,7 +1500,6 @@ else:
                     kpi5.metric("Place P/L", f"£{kpis[4]:.2f}")
                     kpi6.metric("Total ROI", f"{kpis[5]:.2f}%")
                     
-                    # --- NEW: Advanced Metrics Sub-Row ---
                     st.markdown(f"""
                         <div style='background-color: #f8f9fa; padding: 12px; border-radius: 5px; margin-top: 5px; font-size: 13px; line-height: 2.0;'>
                             <b style='color: #1a3a5f;'>Advanced Metrics:</b> &nbsp; 
@@ -1693,7 +1611,6 @@ else:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # --- MEMORY ANCHORS FOR SORTING ---
                 if 'ra_sort_by' not in st.session_state: st.session_state.ra_sort_by = "Pure Rank"
                 if 'ra_sort_dir' not in st.session_state: st.session_state.ra_sort_dir = "Ascending (Low to High)"
                 
@@ -1834,24 +1751,19 @@ else:
                 html += "</tbody></table></div>"
                 st.markdown(html, unsafe_allow_html=True)
 
-                # --- ADMIN ONLY: AI X-RAY ---
                 if st.session_state.get("is_admin"):
                     st.markdown("<br><hr>", unsafe_allow_html=True)
                     with st.expander("🧠 Admin: AI Decision X-Ray (Under the Hood)", expanded=False):
                         st.markdown("This shows the exact raw data the Machine Learning model used to calculate the probabilities for the Top 3 horses in this race.")
                         
-                        # Grab the top 3 horses based on Pure Rank
                         top_3_df = race_df.nsmallest(3, 'Pure Rank').copy()
                         
                         if not top_3_df.empty:
-                            # Define the exact features the Shadow Model uses
                             xray_cols = ['Horse', 'Pure Rank'] + shadow_feats 
                             
-                            # Filter to only the columns that exist in our dataframe
                             valid_xray_cols = [c for c in xray_cols if c in top_3_df.columns]
                             xray_df = top_3_df[valid_xray_cols].set_index('Horse').T
                             
-                            # Clean up the formatting for display
                             st.dataframe(
                                 xray_df.style.format("{:.3f}", na_rep="-"),
                                 use_container_width=True
@@ -1883,7 +1795,8 @@ else:
 
         else:
             st.info("No data available for today's races.")
-# =========================================================================
+            
+    # =========================================================================
     # 🧪 PAGE 6: ACID TEST ENVIRONMENT (OUT-OF-SAMPLE VALUE TEST)
     # =========================================================================
     elif page == "🧪 Acid Test Environment":
@@ -1926,26 +1839,21 @@ else:
                     if train_df.empty or test_df.empty:
                         st.error("Error: Not enough data on one side of the split date.")
                     else:
-                        # 1. Train the LEASHED model on the past
                         test_model = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.05, max_depth=3, l2_regularization=15.0, min_samples_leaf=250, random_state=42)
                         test_model.fit(train_df[feats].fillna(0), (train_df['Fin Pos'] == 1).astype(int))
                         
-                        # 2. Predict Probabilities
                         train_df['Blind_Prob'] = test_model.predict_proba(train_df[feats].fillna(0))[:, 1]
                         test_df['Blind_Prob'] = test_model.predict_proba(test_df[feats].fillna(0))[:, 1]
                         
-                        # 3. Calculate True Value Price
                         train_df['Blind_True_Price'] = np.where(train_df['Blind_Prob'] > 0.001, 1.0 / train_df['Blind_Prob'], 1000.0)
                         test_df['Blind_True_Price'] = np.where(test_df['Blind_Prob'] > 0.001, 1.0 / test_df['Blind_Prob'], 1000.0)
                         
-                        # 4. Calculate Market Edge
                         for d in [train_df, test_df]:
                             d['Market_Price'] = np.where(d['BSP'] > 0, d['BSP'], d['7:30AM Price'])
                             d['Blind_Edge'] = ((d['Market_Price'] / d['Blind_True_Price']) - 1) * 100
                             d['Is_Win'] = np.where(d['Win P/L <2%'] > 0, 1, 0)
                         
                         def calculate_value_kpis(data_subset, target_edge):
-                            # We test horses that meet the edge AND are priced under 20.0 to avoid 100/1 lottery flukes
                             bets = data_subset[(data_subset['Blind_Edge'] >= target_edge) & (data_subset['Market_Price'] <= 20.0)]
                             count = len(bets)
                             if count == 0: return 0, 0, 0, 0
@@ -1994,7 +1902,7 @@ else:
                         else:
                             st.error("🚨 **Verdict: Unprofitable.** This Value threshold did not generate a profit in either the past or the future.")
 
-# =========================================================================
+    # =========================================================================
     # 📉 PAGE 7: TRUE VALUE SANDBOX
     # =========================================================================
     elif page == "📉 True Value Sandbox":
@@ -2013,24 +1921,18 @@ else:
                 with st.spinner("Training the leashed AI and calculating real-world prices... this may take a minute."):
                     train_df = df_all[df_all['Fin Pos'] > 0].copy()
 
-                    # 1. Train the LEASHED Model (Depth 3, Heavy Regularization, High Min Samples)
                     cal_model = HistGradientBoostingClassifier(
                         max_iter=100, learning_rate=0.05, max_depth=3,
                         l2_regularization=15.0, min_samples_leaf=250, random_state=42
                     )
                     cal_model.fit(train_df[feats].fillna(0), (train_df['Fin Pos'] == 1).astype(int))
 
-                    # 2. Get True Calibrated Probabilities
                     train_df['True_AI_Prob'] = cal_model.predict_proba(train_df[feats].fillna(0))[:, 1]
-
-                    # 3. Calculate True Value Price
                     train_df['True_Value_Price'] = np.where(train_df['True_AI_Prob'] > 0.001, 1.0 / train_df['True_AI_Prob'], 1000.0)
 
-                    # 4. Calculate Market Price & The Value Edge
                     train_df['Market_Price'] = np.where(train_df['BSP'] > 0, train_df['BSP'], train_df['7:30AM Price'])
                     train_df['Value_Edge_Perc'] = ((train_df['Market_Price'] / train_df['True_Value_Price']) - 1) * 100
 
-                    # 5. Set up Win markers and P/L
                     train_df['Is_Win'] = np.where(train_df['Fin Pos'] == 1, 1, 0)
 
                     st.session_state['value_sandbox_df'] = train_df
@@ -2086,7 +1988,6 @@ else:
             elif sandbox_mode == "🩺 System Value Audit":
                 st.markdown("Select a saved system to see exactly how much of its profit was driven by True Value versus Market Luck.")
                 
-                # Load Systems
                 saved_systems = {}
                 for file_name in ["K2_user_systems.json", "K2_admin_systems.json"]:
                     if os.path.exists(file_name):
@@ -2099,7 +2000,6 @@ else:
                     sys_data = saved_systems[sys_name]
                     
                     if st.button("🚀 Run Value X-Ray on System"):
-                        # Apply System Mechanical Filters
                         s_mask = (
                             vdf['Race Type'].isin(sys_data.get('race_types', [])) &
                             vdf['H/Cap'].isin(sys_data.get('hcap_types', [])) &
@@ -2132,15 +2032,12 @@ else:
                         sys_df = vdf[s_mask].copy()
                         
                         if not sys_df.empty:
-                            # Create Value Brackets
                             bins = [-np.inf, 0.0, 10.0, np.inf]
                             labels = ['1. Negative Edge (< 0%)', '2. Fair Value (0% to 10%)', '3. Deep Value (> 10%)']
                             sys_df['Edge Bracket'] = pd.cut(sys_df['Value_Edge_Perc'], bins=bins, labels=labels)
                             
                             breakdown = sys_df.groupby('Edge Bracket', observed=False).agg(
-                                Bets=('Horse', 'count'),
-                                Wins=('Is_Win', 'sum'),
-                                PNL=('Win P/L <2%', 'sum')
+                                Bets=('Horse', 'count'), Wins=('Is_Win', 'sum'), PNL=('Win P/L <2%', 'sum')
                             ).reset_index()
                             
                             breakdown['S/R %'] = np.where(breakdown['Bets'] > 0, (breakdown['Wins'] / breakdown['Bets']) * 100, 0)
@@ -2159,19 +2056,10 @@ else:
                             for _, row in breakdown.iterrows():
                                 bg = "#ffebee" if "Negative" in row['Edge Bracket'] else "#e8f4f8" if "Fair" in row['Edge Bracket'] else "#e8f8e8"
                                 pl_col = "#d32f2f" if row['PNL'] < 0 else "#2e7d32"
-                                html_table += f"<tr style='background-color: {bg}; border-bottom: 1px solid #ddd;'>"
-                                html_table += f"<td style='padding: 8px; text-align: left;'><b>{row['Edge Bracket']}</b></td>"
-                                html_table += f"<td>{row['Bets']}</td><td>{row['Wins']}</td><td>{row['S/R %']:.1f}%</td>"
-                                html_table += f"<td style='color: {pl_col}; font-weight: bold;'>£{row['PNL']:.2f}</td>"
-                                html_table += f"<td style='color: {pl_col}; font-weight: bold;'>{row['ROI %']:.1f}%</td></tr>"
+                                html_table += f"<tr style='background-color: {bg}; border-bottom: 1px solid #ddd;'><td style='padding: 8px; text-align: left;'><b>{row['Edge Bracket']}</b></td><td>{row['Bets']}</td><td>{row['Wins']}</td><td>{row['S/R %']:.1f}%</td><td style='color: {pl_col}; font-weight: bold;'>£{row['PNL']:.2f}</td><td style='color: {pl_col}; font-weight: bold;'>{row['ROI %']:.1f}%</td></tr>"
                             
-                            # Add Totals Row
                             t_col = "#d32f2f" if total_pl < 0 else "#2e7d32"
-                            html_table += f"<tr style='background-color: #f0f0f0; border-top: 2px solid #1a3a5f; font-weight: bold;'>"
-                            html_table += f"<td style='padding: 8px; text-align: left;'>SYSTEM TOTALS</td>"
-                            html_table += f"<td>{total_bets}</td><td>{total_wins}</td><td>{(total_wins/total_bets*100):.1f}%</td>"
-                            html_table += f"<td style='color: {t_col};'>£{total_pl:.2f}</td><td style='color: {t_col};'>{total_roi:.1f}%</td></tr>"
-                            
+                            html_table += f"<tr style='background-color: #f0f0f0; border-top: 2px solid #1a3a5f; font-weight: bold;'><td style='padding: 8px; text-align: left;'>SYSTEM TOTALS</td><td>{total_bets}</td><td>{total_wins}</td><td>{(total_wins/total_bets*100):.1f}%</td><td style='color: {t_col};'>£{total_pl:.2f}</td><td style='color: {t_col};'>{total_roi:.1f}%</td></tr>"
                             html_table += "</table>"
                             st.markdown(html_table, unsafe_allow_html=True)
                             
@@ -2180,12 +2068,11 @@ else:
                             st.warning("This system generated no qualifying bets in the historical data.")
                 else:
                     st.info("No saved systems found. Create and save a system in the System Builder first.")
-    
+
     if st.session_state.get("is_admin"):
         st.sidebar.markdown("---")
         st.sidebar.markdown("### ⚙️ Admin Tools")
         
-        # 1. Login Logs
         if os.path.exists("K2_login_log.csv"):
             with open("K2_login_log.csv", "rb") as f:
                 st.sidebar.download_button(
@@ -2198,7 +2085,6 @@ else:
         else:
             st.sidebar.info("ℹ️ No login logs generated yet.")
 
-        # 2. Server Performance Logs
         if os.path.exists("K2_performance_log.csv"):
             with open("K2_performance_log.csv", "rb") as f:
                 st.sidebar.download_button(
@@ -2208,7 +2094,7 @@ else:
                     mime="text/csv", 
                     use_container_width=True
                 )
-# 3. Prediction Vault Generator
+
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 🗄️ Prediction Vault")
         st.sidebar.markdown("<span style='font-size:12px;'>Generate a master snapshot of all historical AI probabilities to lock in backtests against model drift.</span>", unsafe_allow_html=True)
@@ -2218,7 +2104,6 @@ else:
             existing_v_cols = [c for c in vault_export_cols if c in df_all_prepped.columns]
             vault_export_df = df_all_prepped[existing_v_cols].copy()
             
-            # Round probabilities to 6 decimals to save file size while perfectly maintaining sort ranks
             for col in ['ML_Prob', 'Shadow_Prob']:
                 if col in vault_export_df.columns:
                     vault_export_df[col] = vault_export_df[col].round(6)
