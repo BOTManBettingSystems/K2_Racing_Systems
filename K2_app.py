@@ -1884,84 +1884,81 @@ else:
         else:
             st.info("No data available for today's races.")
 # =========================================================================
-    # 🧪 PAGE 6: ACID TEST ENVIRONMENT (OUT-OF-SAMPLE)
+    # 🧪 PAGE 6: ACID TEST ENVIRONMENT (OUT-OF-SAMPLE VALUE TEST)
     # =========================================================================
     elif page == "🧪 Acid Test Environment":
-        st.header("🧪 The Acid Test: Out-of-Sample Validation")
+        st.header("🧪 The Acid Test: Out-of-Sample Value Validation")
         st.markdown("""
-        **How it works:** This environment prevents "backtest drift" and data leakage. 
-        1. It slices your historical data chronologically.
-        2. It trains a completely fresh AI using *only* the past (Training Set).
-        3. It forces the AI to predict the future (Test Set) entirely blind.
-        If the ROI holds up in the Test Set, your edge is real. If it collapses, the AI was overfitted.
+        **How it works:** This environment proves if our "True Value Price" can survive the future.
+        1. Slices your historical data chronologically at "The Wall".
+        2. Trains the Leashed AI strictly on the past to calculate True Probabilities.
+        3. Identifies bets in the past AND the future where the Market Odds beat our True Price by your required Edge %.
         """)
         
         st.markdown("---")
         
         if df_all is not None and not df_all.empty:
-            c_date, c_btn = st.columns([2, 1])
+            c_date, c_edge, c_btn = st.columns([2, 1.5, 1.5])
             
             with c_date:
                 min_dt = df_all['Date_DT'].min().date()
                 max_dt = df_all['Date_DT'].max().date()
-                
-                # Default to roughly a 70/30 split (e.g., start of 2026)
                 default_split = datetime(2026, 1, 1).date()
                 if default_split < min_dt or default_split > max_dt:
                     default_split = min_dt + timedelta(days=(max_dt - min_dt).days * 0.7)
                 
-                split_date = st.date_input("Select Chronological Split Date (The 'Wall'):", value=default_split, min_value=min_dt, max_value=max_dt)
+                split_date = st.date_input("Select 'The Wall' (Split Date):", value=default_split, min_value=min_dt, max_value=max_dt)
+                
+            with c_edge:
+                test_edge = st.number_input("Test Minimum Value Edge %:", value=10.0, step=5.0)
                 
             with c_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
-                run_test = st.button("🚀 Run Blind Out-of-Sample Test", use_container_width=True, type="primary")
+                run_test = st.button("🚀 Run Blind Value Test", use_container_width=True, type="primary")
 
             if run_test:
-                with st.spinner("Training fresh AI on the past and predicting the future blind..."):
-                    # 1. Prepare data (ensure no NaNs in target)
+                with st.spinner(f"Training Leashed AI and testing >{test_edge}% Edge blindly..."):
                     df_clean = df_all[df_all['Fin Pos'] > 0].copy()
                     
-                    # 2. Slice the data at the "Wall"
                     train_df = df_clean[df_clean['Date_DT'].dt.date < split_date].copy()
                     test_df = df_clean[df_clean['Date_DT'].dt.date >= split_date].copy()
                     
                     if train_df.empty or test_df.empty:
-                        st.error("Error: Not enough data on one side of the split date. Please adjust the date.")
+                        st.error("Error: Not enough data on one side of the split date.")
                     else:
-                        # 3. Train a brand new model STRICTLY on the training data
-                        test_model = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.08, max_depth=5, l2_regularization=2.0, random_state=42)
+                        # 1. Train the LEASHED model on the past
+                        test_model = HistGradientBoostingClassifier(max_iter=100, learning_rate=0.05, max_depth=3, l2_regularization=15.0, min_samples_leaf=250, random_state=42)
                         test_model.fit(train_df[feats].fillna(0), (train_df['Fin Pos'] == 1).astype(int))
                         
-                        # 4. Predict on both sets to compare
+                        # 2. Predict Probabilities
                         train_df['Blind_Prob'] = test_model.predict_proba(train_df[feats].fillna(0))[:, 1]
                         test_df['Blind_Prob'] = test_model.predict_proba(test_df[feats].fillna(0))[:, 1]
                         
-                        # Rank them
-                        train_df['Blind_Rank'] = train_df.groupby(['Date_Key', 'Time', 'Course'])['Blind_Prob'].rank(ascending=False, method='first')
-                        test_df['Blind_Rank'] = test_df.groupby(['Date_Key', 'Time', 'Course'])['Blind_Prob'].rank(ascending=False, method='first')
+                        # 3. Calculate True Value Price
+                        train_df['Blind_True_Price'] = np.where(train_df['Blind_Prob'] > 0.001, 1.0 / train_df['Blind_Prob'], 1000.0)
+                        test_df['Blind_True_Price'] = np.where(test_df['Blind_Prob'] > 0.001, 1.0 / test_df['Blind_Prob'], 1000.0)
                         
-                        # Set Win/Place markers
-                        train_df['Is_Win'] = np.where(train_df['Win P/L <2%'] > 0, 1, 0)
-                        test_df['Is_Win'] = np.where(test_df['Win P/L <2%'] > 0, 1, 0)
+                        # 4. Calculate Market Edge
+                        for d in [train_df, test_df]:
+                            d['Market_Price'] = np.where(d['BSP'] > 0, d['BSP'], d['7:30AM Price'])
+                            d['Blind_Edge'] = ((d['Market_Price'] / d['Blind_True_Price']) - 1) * 100
+                            d['Is_Win'] = np.where(d['Win P/L <2%'] > 0, 1, 0)
                         
-                        def calculate_kpis(data_subset, rank_filter=1):
-                            bets = data_subset[data_subset['Blind_Rank'] == rank_filter]
+                        def calculate_value_kpis(data_subset, target_edge):
+                            # We test horses that meet the edge AND are priced under 20.0 to avoid 100/1 lottery flukes
+                            bets = data_subset[(data_subset['Blind_Edge'] >= target_edge) & (data_subset['Market_Price'] <= 20.0)]
                             count = len(bets)
-                            if count == 0: return 0, 0, 0
+                            if count == 0: return 0, 0, 0, 0
                             wins = bets['Is_Win'].sum()
                             profit = bets['Win P/L <2%'].sum()
                             roi = (profit / count) * 100
                             sr = (wins / count) * 100
                             return count, profit, roi, sr
                             
-                        # Calculate for Rank 1
-                        tr_count, tr_profit, tr_roi, tr_sr = calculate_kpis(train_df, 1)
-                        te_count, te_profit, te_roi, te_sr = calculate_kpis(test_df, 1)
+                        tr_count, tr_profit, tr_roi, tr_sr = calculate_value_kpis(train_df, test_edge)
+                        te_count, te_profit, te_roi, te_sr = calculate_value_kpis(test_df, test_edge)
                         
-                        st.success("✅ Blind Test Complete! Here is the harsh truth.")
-                        
-                        # Render Results
-                        st.markdown("### Baseline Performance: AI Rank 1 Only")
+                        st.success(f"✅ Blind Test Complete! Testing all bets with > {test_edge}% True Value Edge (Max Price 20.0).")
                         
                         col1, col2 = st.columns(2)
                         
@@ -1990,15 +1987,12 @@ else:
                             """, unsafe_allow_html=True)
                             
                         st.markdown("<br>", unsafe_allow_html=True)
-                        if te_roi > 0 and (tr_roi - te_roi) < 10:
-                            st.info("🏆 **Verdict: Excellent.** The AI maintained profitability when predicting blind. This suggests a legitimate, robust market edge.")
-                        elif te_roi > 0 and (tr_roi - te_roi) >= 10:
-                            st.warning("⚠️ **Verdict: Borderline.** The system is profitable, but performance dropped significantly in the blind test. The training ROI is likely inflated by overfitting.")
+                        if te_roi > 0 and tr_roi > 0:
+                            st.info("🏆 **Verdict: Phenomenal.** The Value calculation generated profit in the past AND survived the blind test into the future. Your edge is real.")
+                        elif tr_roi > 0 and te_roi <= 0:
+                            st.warning("⚠️ **Verdict: Failed.** The Value edge was profitable in the past but collapsed in the blind future. The threshold might be too low, or the edge dried up.")
                         else:
-                            st.error("🚨 **Verdict: Overfitted.** The system crashed when forced to predict blind data. The high ROIs seen in the main app are likely due to the AI memorizing the past.")
-        else:
-            st.warning("No historical data available to run the test.")
-    # --- ADMIN SIDEBAR TOOLS ---
+                            st.error("🚨 **Verdict: Unprofitable.** This Value threshold did not generate a profit in either the past or the future.")
 
 # =========================================================================
     # 📉 PAGE 7: TRUE VALUE SANDBOX
