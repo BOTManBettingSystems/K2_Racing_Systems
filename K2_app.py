@@ -948,6 +948,48 @@ else:
                                 html_table += f"""<tr style="background-color: {bg};"><td class="left-align"><b>{row[sys_col_found]}</b></td><td class="left-align">{b_s}{row['Period']}{b_e}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td style="color:{w_color}; font-weight:bold;">£{row['Win_Profit']:.2f}</td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td style="color:{p_color}; font-weight:bold;">£{row['Place_Profit']:.2f}</td><td>{row['Place SR (%)']:.2f}%</td><td style="color:{t_color}; font-weight:bold;">£{row['Total P/L']:.2f}</td></tr>"""
                             html_table += "</tbody></table></div>"
                             st.markdown(html_table, unsafe_allow_html=True)
+
+                            # --- NEW: SYSTEM INSPECTOR ---
+                            st.markdown("---")
+                            st.markdown("### 🔍 Inspect System Selections")
+                            st.markdown("Select a system and period below to view the exact horses that make up the results in the table above.")
+                            
+                            i_col1, i_col2 = st.columns(2)
+                            with i_col1:
+                                inspect_sys = st.selectbox("Select System:", unique_sys)
+                            with i_col2:
+                                inspect_period = st.radio("Select Period:", ["All Time", "Current Month"], horizontal=True)
+                            
+                            inspect_mask = (merged_smart[sys_col_found] == inspect_sys)
+                            if inspect_period == "Current Month":
+                                inspect_mask &= (merged_smart['Month_Yr'] == current_month_str)
+                                
+                            inspect_df = merged_smart[inspect_mask].copy()
+                            
+                            if not inspect_df.empty:
+                                inspect_df = inspect_df.sort_values(by=['Date_DT', 'Time'])
+                                display_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'Fin Pos', 'Win P/L <2%', 'Place P/L <2%']
+                                avail_cols = [c for c in display_cols if c in inspect_df.columns]
+                                
+                                clean_inspect = clean_csv_df(inspect_df[avail_cols])
+                                
+                                def style_pl(val):
+                                    if isinstance(val, (int, float)):
+                                        if val > 0: return 'color: #2e7d32; font-weight: bold;'
+                                        elif val < 0: return 'color: #d32f2f; font-weight: bold;'
+                                    return ''
+                                    
+                                st.dataframe(
+                                    clean_inspect.style.map(style_pl, subset=['Win P/L <2%', 'Place P/L <2%'] if 'Win P/L <2%' in clean_inspect.columns else []),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+                                
+                                csv_ins = clean_inspect.to_csv(index=False).encode('utf-8')
+                                st.download_button(f"📥 Download {inspect_sys} Selections", csv_ins, f"K2_{inspect_sys}_{inspect_period.replace(' ', '_')}.csv", "text/csv")
+                            else:
+                                st.info(f"No selections found for '{inspect_sys}' in the {inspect_period} period.")
+
                         else: st.warning("Found the file, but none of the picks had a matched race result in the database.")
                     else: st.error("The file is missing one of the required columns: Date, Time, Course, or Horse.")
                 except Exception as e: st.error(f"Error processing {target_ods}: {e}")
