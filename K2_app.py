@@ -1123,7 +1123,7 @@ else:
                 with c8: 
                     age_min, age_max = st.slider("Horse Age Range", 1, 20, value=st.session_state.get('ui_age_range', (1, 20)))
                 
-                with st.expander("📊 Advanced Rank Filters", expanded=False):
+                with st.expander("📊 Rank Filters", expanded=False):
                     r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
                     with r1_c1: comb_f = st.selectbox("Comb. Rank", rank_opts, index=get_r_idx('ui_comb_f'))
                     with r1_c2: comp_f = st.selectbox("Comp. Rank", rank_opts, index=get_r_idx('ui_comp_f'))
@@ -1140,19 +1140,19 @@ else:
                     
                     r3_c1, r3_c2, r3_c3, r3_c4, r3_c5 = st.columns(5)
                     with r3_c1: pure_f = st.selectbox("Pure Rank", rank_opts, index=get_r_idx('ui_pure_f'))
-
+                        
                 st.markdown("---")
-                st.markdown("### 🩻 Custom Value X-Ray Brackets")
-                st.markdown("""
-                **How to use these sliders:**
-                These sliders let you 'X-Ray' your system's data to find the exact point where your profit scales up. They do **not** filter out horses; they only change how the bottom table is grouped.
-                * **The Strategy:** Move Bracket 2 to `12%` and hit Process Data. You might discover that the `> 12%` group generates a massive +30% ROI, while the `0% to 12%` group actually loses money.
-                * **The Execution:** Once you find that magic sweet spot, scroll back up to the Core Filters, set your **Min Value Edge %** to that exact number (e.g., `12.0`), and save your system. Now your daily qualifiers will only serve you the elite bets!
-                """)
-                v_c1, v_c2 = st.columns(2)
-                with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
-                with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
-                st.info(f"Dynamically splits the breakdown table below into: **< {bracket_1}%**, **{bracket_1}% to {bracket_2}%**, and **> {bracket_2}%**.")
+                with st.expander("🩻 Custom Value X-Ray Brackets", expanded=False):
+                    st.markdown("""
+                    **How to use these sliders:**
+                    These sliders let you 'X-Ray' your system's data to find the exact point where your profit scales up. They do **not** filter out horses; they only change how the bottom table is grouped.
+                    * **The Strategy:** Move Bracket 2 to `12%` and hit Process Data. You might discover that the `> 12%` group generates a massive +30% ROI, while the `0% to 12%` group actually loses money.
+                    * **The Execution:** Once you find that magic sweet spot, scroll back up to the Core Filters, set your **Min Value Edge %** to that exact number (e.g., `12.0`), and save your system. Now your daily qualifiers will only serve you the elite bets!
+                    """)
+                    v_c1, v_c2 = st.columns(2)
+                    with v_c1: bracket_1 = st.slider("Bracket 1 Threshold (%)", -20.0, 20.0, value=float(st.session_state.get('ui_bracket_1', 0.0)), step=1.0)
+                    with v_c2: bracket_2 = st.slider("Bracket 2 Threshold (%)", 0.0, 50.0, value=float(st.session_state.get('ui_bracket_2', 10.0)), step=1.0)
+                    st.info(f"Dynamically splits the breakdown table below into: **< {bracket_1}%**, **{bracket_1}% to {bracket_2}%**, and **> {bracket_2}%**.")
                 
                 st.markdown("---")
                 st.markdown("### 📊 Dynamic Table Grouping")
