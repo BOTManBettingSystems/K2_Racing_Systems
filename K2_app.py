@@ -951,8 +951,10 @@ else:
                                 
                                 row_df = merged_smart[sys_mask].copy()
                                 row_df = row_df.sort_values(by=['Date_DT', 'Time'])
-                                dl_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'Fin Pos', 'Win P/L <2%', 'Place P/L <2%']
-                                avail_dl_cols = [c for c in dl_cols if c in row_df.columns]
+                                
+                                # Strip out internal app-tracking columns, keep everything else
+                                internal_cols = ['Date_Key', 'Date_DT', 'Month_Yr', 'Is_Win', 'Is_Place', 'SortKey']
+                                avail_dl_cols = [c for c in row_df.columns if c not in internal_cols]
                                 
                                 if not row_df.empty:
                                     csv_str = clean_csv_df(row_df[avail_dl_cols]).to_csv(index=False)
