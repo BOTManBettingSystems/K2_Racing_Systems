@@ -699,8 +699,7 @@ else:
                     top_tracks = pd.DataFrame(track_stats).sort_values('ROI%', ascending=False).head(5)
                     st.table(top_tracks.set_index('Course'))
 
-
-    # =========================================================================
+# =========================================================================
     # 🧠 PAGE 3: GENERAL SYSTEMS
     # =========================================================================
     elif page == "🧠 General Systems":
@@ -927,7 +926,7 @@ else:
                             combined['SortKey'] = np.where(combined['Period'] == 'All Time', 1, 2)
                             combined = combined.sort_values(by=[sys_col_found, 'SortKey']).drop('SortKey', axis=1)
 
-                            html_table = """<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 1000px;"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">System Name</th><th class="left-align">Period</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th></tr></thead><tbody>"""
+                            html_table = """<style>.builder-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .builder-table th, .builder-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .builder-table tr:hover { background-color: #0000FF !important; color: white !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="builder-table" style="min-width: 1000px;"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">System Name</th><th class="left-align">Period</th><th>Bets</th><th>Wins</th><th>Win P/L</th><th>Win SR</th><th>Places</th><th>Plc P/L</th><th>Plc SR</th><th>Total P/L</th><th>DL</th></tr></thead><tbody>"""
                             
                             unique_sys = combined[sys_col_found].unique()
                             palette = ["#e8f4f8", "#f8e8e8", "#e8f8e8", "#f8f4e8", "#f4e8f8", "#e8f8f8"]
@@ -936,7 +935,7 @@ else:
                             last_sys = None
                             for _, row in combined.iterrows():
                                 if last_sys is not None and last_sys != row[sys_col_found]:
-                                    html_table += '<tr><td colspan="10" style="border: none !important; background-color: white !important; height: 15px; padding: 0 !important;"></td></tr>'
+                                    html_table += '<tr><td colspan="11" style="border: none !important; background-color: white !important; height: 15px; padding: 0 !important;"></td></tr>'
                                 last_sys = row[sys_col_found]
                                 bg = bg_colors[row[sys_col_found]]
                                 b_s = "<b>" if row['Period'] == 'All Time' else ""
@@ -945,50 +944,29 @@ else:
                                 p_color = "#2e7d32" if row['Place_Profit'] > 0 else "#d32f2f" if row['Place_Profit'] < 0 else "black"
                                 t_color = "#2e7d32" if row['Total P/L'] > 0 else "#d32f2f" if row['Total P/L'] < 0 else "black"
                                 
-                                html_table += f"""<tr style="background-color: {bg};"><td class="left-align"><b>{row[sys_col_found]}</b></td><td class="left-align">{b_s}{row['Period']}{b_e}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td style="color:{w_color}; font-weight:bold;">£{row['Win_Profit']:.2f}</td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td style="color:{p_color}; font-weight:bold;">£{row['Place_Profit']:.2f}</td><td>{row['Place SR (%)']:.2f}%</td><td style="color:{t_color}; font-weight:bold;">£{row['Total P/L']:.2f}</td></tr>"""
+                                # --- GENERATE ROW-SPECIFIC BASE64 DOWNLOAD LINK ---
+                                sys_mask = (merged_smart[sys_col_found] == row[sys_col_found])
+                                if row['Period'] != 'All Time':
+                                    sys_mask &= (merged_smart['Month_Yr'] == row['Period'])
+                                
+                                row_df = merged_smart[sys_mask].copy()
+                                row_df = row_df.sort_values(by=['Date_DT', 'Time'])
+                                dl_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'Fin Pos', 'Win P/L <2%', 'Place P/L <2%']
+                                avail_dl_cols = [c for c in dl_cols if c in row_df.columns]
+                                
+                                if not row_df.empty:
+                                    csv_str = clean_csv_df(row_df[avail_dl_cols]).to_csv(index=False)
+                                    b64_csv = base64.b64encode(csv_str.encode()).decode()
+                                    safe_name = str(row[sys_col_found]).replace(' ', '_')
+                                    safe_period = str(row['Period']).replace(' ', '_')
+                                    fname = f"K2_{safe_name}_{safe_period}.csv"
+                                    dl_link = f'<a href="data:text/csv;base64,{b64_csv}" download="{fname}" style="text-decoration:none; font-size:16px;" title="Download Selections">📥</a>'
+                                else:
+                                    dl_link = "-"
+                                
+                                html_table += f"""<tr style="background-color: {bg};"><td class="left-align"><b>{row[sys_col_found]}</b></td><td class="left-align">{b_s}{row['Period']}{b_e}</td><td>{row['Bets']}</td><td>{row['Wins']}</td><td style="color:{w_color}; font-weight:bold;">£{row['Win_Profit']:.2f}</td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td style="color:{p_color}; font-weight:bold;">£{row['Place_Profit']:.2f}</td><td>{row['Place SR (%)']:.2f}%</td><td style="color:{t_color}; font-weight:bold;">£{row['Total P/L']:.2f}</td><td>{dl_link}</td></tr>"""
                             html_table += "</tbody></table></div>"
                             st.markdown(html_table, unsafe_allow_html=True)
-
-                            # --- NEW: SYSTEM INSPECTOR ---
-                            st.markdown("---")
-                            st.markdown("### 🔍 Inspect System Selections")
-                            st.markdown("Select a system and period below to view the exact horses that make up the results in the table above.")
-                            
-                            i_col1, i_col2 = st.columns(2)
-                            with i_col1:
-                                inspect_sys = st.selectbox("Select System:", unique_sys)
-                            with i_col2:
-                                inspect_period = st.radio("Select Period:", ["All Time", "Current Month"], horizontal=True)
-                            
-                            inspect_mask = (merged_smart[sys_col_found] == inspect_sys)
-                            if inspect_period == "Current Month":
-                                inspect_mask &= (merged_smart['Month_Yr'] == current_month_str)
-                                
-                            inspect_df = merged_smart[inspect_mask].copy()
-                            
-                            if not inspect_df.empty:
-                                inspect_df = inspect_df.sort_values(by=['Date_DT', 'Time'])
-                                display_cols = ['Date', 'Time', 'Course', 'Horse', '7:30AM Price', 'Fin Pos', 'Win P/L <2%', 'Place P/L <2%']
-                                avail_cols = [c for c in display_cols if c in inspect_df.columns]
-                                
-                                clean_inspect = clean_csv_df(inspect_df[avail_cols])
-                                
-                                def style_pl(val):
-                                    if isinstance(val, (int, float)):
-                                        if val > 0: return 'color: #2e7d32; font-weight: bold;'
-                                        elif val < 0: return 'color: #d32f2f; font-weight: bold;'
-                                    return ''
-                                    
-                                st.dataframe(
-                                    clean_inspect.style.map(style_pl, subset=['Win P/L <2%', 'Place P/L <2%'] if 'Win P/L <2%' in clean_inspect.columns else []),
-                                    use_container_width=True,
-                                    hide_index=True
-                                )
-                                
-                                csv_ins = clean_inspect.to_csv(index=False).encode('utf-8')
-                                st.download_button(f"📥 Download {inspect_sys} Selections", csv_ins, f"K2_{inspect_sys}_{inspect_period.replace(' ', '_')}.csv", "text/csv")
-                            else:
-                                st.info(f"No selections found for '{inspect_sys}' in the {inspect_period} period.")
 
                         else: st.warning("Found the file, but none of the picks had a matched race result in the database.")
                     else: st.error("The file is missing one of the required columns: Date, Time, Course, or Horse.")
@@ -998,7 +976,6 @@ else:
                     st.info("To see Admin performance tracking, please upload 'K2AdminMaster.ods' to the root folder.")
                 else:
                     st.info("To see live performance tracking, please upload 'K2SystemsMaster.ods' to the root folder.")
-
     # =========================================================================
     # 🛠️ PAGE 4: SYSTEM BUILDER
     # =========================================================================
