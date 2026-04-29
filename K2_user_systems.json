@@ -1,39 +1,39 @@
 {
-    "Pure Rank 1 Turf Handicaps": {
+  "Pure Rank 1 Turf Handicaps": {
     "race_types": [
-        "Turf"
+      "Turf"
     ],
     "hcap_types": [
-        "Y"
+      "Y"
     ],
     "price_min": 3.01,
     "price_max": 1000.0,
     "min_prob_gap": -1.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        1,
-        2,
-        3,
-        4,
-        5
+      1,
+      2,
+      3,
+      4,
+      5
     ],
     "cm": [
-        "D",
-        "S",
-        "U"
+      "D",
+      "S",
+      "U"
     ],
     "sex": [
-        "m",
-        "c",
-        "g",
-        "h",
-        "r",
-        "x"
+      "m",
+      "c",
+      "g",
+      "h",
+      "r",
+      "x"
     ],
     "courses": [],
     "rank_1_only": false,
@@ -42,61 +42,61 @@
     "age_min": 1,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Any",
-        "Comp. Rank": "Any",
-        "Speed Rank": "Any",
-        "Race Rank": "Any",
-        "Primary Rank": "Any",
-        "MSAI Rank": "Any",
-        "PRB Rank": "Any",
-        "Trainer PRB Rank": "Any",
-        "Jockey PRB Rank": "Any",
-        "Form Rank": "Any",
-        "Pure Rank": "Rank 1"
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "Primary Rank": "Any",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Any",
+      "Jockey PRB Rank": "Any",
+      "Form Rank": "Any",
+      "Pure Rank": "Rank 1"
     }
-},
-"Pure Rank 1 Hurdle Handicaps": {
+  },
+  "Pure Rank 1 Hurdle Handicaps": {
     "race_types": [
-        "Hurdle"
+      "Hurdle"
     ],
     "hcap_types": [
-        "Y"
+      "Y"
     ],
     "price_min": 0.0,
     "price_max": 8.0,
     "min_prob_gap": -1.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        4,
-        5
+      4,
+      5
     ],
     "cm": [
-        "S",
-        "D",
-        "U"
+      "S",
+      "D",
+      "U"
     ],
     "sex": [
-        "m",
-        "g"
+      "m",
+      "g"
     ],
     "courses": [],
     "rank_1_only": false,
@@ -105,63 +105,63 @@
     "age_min": 4,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Any",
-        "Comp. Rank": "Any",
-        "Speed Rank": "Any",
-        "Race Rank": "Any",
-        "Primary Rank": "Any",
-        "MSAI Rank": "Any",
-        "PRB Rank": "Any",
-        "Trainer PRB Rank": "Any",
-        "Jockey PRB Rank": "Any",
-        "Form Rank": "Any",
-        "Pure Rank": "Rank 1"
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "Primary Rank": "Any",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Any",
+      "Jockey PRB Rank": "Any",
+      "Form Rank": "Any",
+      "Pure Rank": "Rank 1"
     }
-},
-"Lay** Turf Poor Ranks Dropping in Class": {
+  },
+  "Lay** Turf Poor Ranks Dropping in Class": {
     "race_types": [
-        "Turf"
+      "Turf"
     ],
     "hcap_types": [
-        "Y"
+      "Y"
     ],
     "price_min": 4.0,
     "price_max": 26.0,
     "min_prob_gap": -1.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        6
+      6
     ],
     "cm": [
-        "D"
+      "D"
     ],
     "sex": [
-        "c",
-        "f",
-        "g",
-        "m",
-        "h",
-        "r",
-        "x"
+      "c",
+      "f",
+      "g",
+      "m",
+      "h",
+      "r",
+      "x"
     ],
     "courses": [],
     "ai_rank_filter": "NOT Top 3",
@@ -170,66 +170,66 @@
     "age_min": 8,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Not Top 3",
-        "Comp. Rank": "Not Top 3",
-        "Speed Rank": "Not Top 3",
-        "Race Rank": "Not Top 3",
-        "Primary Rank": "Not Top 3",
-        "MSAI Rank": "Not Top 3",
-        "PRB Rank": "Not Top 3",
-        "Trainer PRB Rank": "Not Top 3",
-        "Jockey PRB Rank": "Not Top 3",
-        "Form Rank": "Not Top 3",
-        "Pure Rank": "Not Top 3"
+      "Comb. Rank": "Not Top 3",
+      "Comp. Rank": "Not Top 3",
+      "Speed Rank": "Not Top 3",
+      "Race Rank": "Not Top 3",
+      "Primary Rank": "Not Top 3",
+      "MSAI Rank": "Not Top 3",
+      "PRB Rank": "Not Top 3",
+      "Trainer PRB Rank": "Not Top 3",
+      "Jockey PRB Rank": "Not Top 3",
+      "Form Rank": "Not Top 3",
+      "Pure Rank": "Not Top 3"
     }
-},
-"LAY** Turf Handicaps Class 1 and 2 Poorly Rated": {
+  },
+  "LAY** Turf Handicaps Class 1 and 2 Poorly Rated": {
     "race_types": [
-        "Turf"
+      "Turf"
     ],
     "hcap_types": [
-        "Y"
+      "Y"
     ],
     "price_min": 0.0,
     "price_max": 8.0,
     "min_prob_gap": -1.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        1,
-        2
+      1,
+      2
     ],
     "cm": [
-        "S",
-        "D",
-        "U"
+      "S",
+      "D",
+      "U"
     ],
     "sex": [
-        "c",
-        "f",
-        "g",
-        "m",
-        "h",
-        "r",
-        "x"
+      "c",
+      "f",
+      "g",
+      "m",
+      "h",
+      "r",
+      "x"
     ],
     "courses": [],
     "ai_rank_filter": "NOT Top 3",
@@ -238,39 +238,39 @@
     "age_min": 1,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Not Top 3",
-        "Comp. Rank": "Not Top 3",
-        "Speed Rank": "Not Top 3",
-        "Race Rank": "Not Top 3",
-        "Primary Rank": "Not Top 3",
-        "MSAI Rank": "Not Top 3",
-        "PRB Rank": "Not Top 3",
-        "Trainer PRB Rank": "Not Top 3",
-        "Jockey PRB Rank": "Not Top 3",
-        "Form Rank": "Not Top 3",
-        "Pure Rank": "Not Top 3"
+      "Comb. Rank": "Not Top 3",
+      "Comp. Rank": "Not Top 3",
+      "Speed Rank": "Not Top 3",
+      "Race Rank": "Not Top 3",
+      "Primary Rank": "Not Top 3",
+      "MSAI Rank": "Not Top 3",
+      "PRB Rank": "Not Top 3",
+      "Trainer PRB Rank": "Not Top 3",
+      "Jockey PRB Rank": "Not Top 3",
+      "Form Rank": "Not Top 3",
+      "Pure Rank": "Not Top 3"
     }
-},
-"PFP Turf Handicaps": {
+  },
+  "PFP Turf Handicaps": {
     "race_types": [
-        "Turf"
+      "Turf"
     ],
     "hcap_types": [
-        "Y"
+      "Y"
     ],
     "price_min": 6.01,
     "price_max": 17.0,
@@ -279,31 +279,31 @@
     "bracket_1": 0.0,
     "bracket_2": 10.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
     ],
     "cm": [
-        "U",
-        "S",
-        "D"
+      "U",
+      "S",
+      "D"
     ],
     "sex": [
-        "f",
-        "g",
-        "m",
-        "h",
-        "r",
-        "x"
+      "f",
+      "g",
+      "m",
+      "h",
+      "r",
+      "x"
     ],
     "courses": [],
     "ai_rank_filter": "Any",
@@ -312,40 +312,40 @@
     "age_min": 3,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Any",
-        "Comp. Rank": "Any",
-        "Speed Rank": "Any",
-        "Race Rank": "Any",
-        "Primary Rank": "Rank 1",
-        "MSAI Rank": "Any",
-        "PRB Rank": "Any",
-        "Trainer PRB Rank": "Any",
-        "Jockey PRB Rank": "Any",
-        "Form Rank": "Rank 1",
-        "Pure Rank": "Rank 1"
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "Primary Rank": "Rank 1",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Any",
+      "Jockey PRB Rank": "Any",
+      "Form Rank": "Rank 1",
+      "Pure Rank": "Rank 1"
     }
-},
-"PFP 1 Hurdle": {
+  },
+  "PFP 1 Hurdle": {
     "race_types": [
-        "Hurdle"
+      "Hurdle"
     ],
     "hcap_types": [
-        "N",
-        "Y"
+      "N",
+      "Y"
     ],
     "price_min": 0.0,
     "price_max": 1000.0,
@@ -354,26 +354,26 @@
     "bracket_1": 0.0,
     "bracket_2": 10.0,
     "rnrs": [
-        "2-7",
-        "8-12",
-        "13-16",
-        ">16"
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
     ],
     "classes": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
     ],
     "cm": [
-        "U",
-        "S",
-        "D"
+      "U",
+      "S",
+      "D"
     ],
     "sex": [
-        "g"
+      "g"
     ],
     "courses": [],
     "ai_rank_filter": "Any",
@@ -382,111 +382,112 @@
     "age_min": 6,
     "age_max": 20,
     "months": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
     ],
     "ranks": {
-        "Comb. Rank": "Any",
-        "Comp. Rank": "Any",
-        "Speed Rank": "Any",
-        "Race Rank": "Any",
-        "Primary Rank": "Rank 1",
-        "MSAI Rank": "Any",
-        "PRB Rank": "Any",
-        "Trainer PRB Rank": "Any",
-        "Jockey PRB Rank": "Any",
-        "Form Rank": "Rank 1",
-        "Pure Rank": "Rank 1"
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "Primary Rank": "Rank 1",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Any",
+      "Jockey PRB Rank": "Any",
+      "Form Rank": "Rank 1",
+      "Pure Rank": "Rank 1"
     }
-},
-"A/W Non H/cap Trainer PRB": {
-        "race_types": [
-            "A/W"
-        ],
-        "hcap_types": [
-            "N"
-        ],
-        "price_min": 0.0,
-        "price_max": 3.0,
-        "min_prob_gap": -1.0,
-        "rnrs": [
-            "2-7",
-            "8-12",
-            "13-16",
-            ">16"
-        ],
-        "classes": [
-            5,
-            6
-        ],
-        "cm": [
-            "U",
-            "S",
-            "D"
-        ],
-        "rank_1_only": true,
-        "value_filter": "Off",
-        "irish": "No (Blank)",
-        "age_min": 1,
-        "age_max": 20,
-        "ranks": {
-            "Comb. Rank": "Any",
-            "Comp. Rank": "Any",
-            "Speed Rank": "Any",
-            "Race Rank": "Any",
-            "MSAI Rank": "Any",
-            "PRB Rank": "Any",
-            "Trainer PRB Rank": "Rank 1",
-            "Jockey PRB Rank": "Any"
-        }
-    },
-    "A/W Handicap Trainer PRB": {
-        "race_types": [
-            "A/W"
-        ],
-        "hcap_types": [
-            "Y"
-        ],
-        "price_min": 4.0,
-        "price_max": 9.0,
-        "min_prob_gap": -1.0,
-        "rnrs": [
-            "8-12",
-            "13-16"
-        ],
-        "classes": [
-            4,
-            5,
-            6
-        ],
-        "cm": [
-            "S",
-            "U",
-            "D"
-        ],
-        "rank_1_only": true,
-        "value_filter": "Off",
-        "irish": "Any",
-        "age_min": 3,
-        "age_max": 9,
-        "ranks": {
-            "Comb. Rank": "Any",
-            "Comp. Rank": "Any",
-            "Speed Rank": "Any",
-            "Race Rank": "Any",
-            "MSAI Rank": "Any",
-            "PRB Rank": "Any",
-            "Trainer PRB Rank": "Rank 1",
-            "Jockey PRB Rank": "Any"
-        }
+  },
+  "A/W Non H/cap Trainer PRB": {
+    "race_types": [
+      "A/W"
+    ],
+    "hcap_types": [
+      "N"
+    ],
+    "price_min": 0.0,
+    "price_max": 3.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+      "2-7",
+      "8-12",
+      "13-16",
+      ">16"
+    ],
+    "classes": [
+      5,
+      6
+    ],
+    "cm": [
+      "U",
+      "S",
+      "D"
+    ],
+    "rank_1_only": true,
+    "value_filter": "Off",
+    "irish": "No (Blank)",
+    "age_min": 1,
+    "age_max": 20,
+    "ranks": {
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Rank 1",
+      "Jockey PRB Rank": "Any"
+    }
+  },
+  "A/W Handicap Trainer PRB": {
+    "race_types": [
+      "A/W"
+    ],
+    "hcap_types": [
+      "Y"
+    ],
+    "price_min": 4.0,
+    "price_max": 9.0,
+    "min_prob_gap": -1.0,
+    "rnrs": [
+      "8-12",
+      "13-16"
+    ],
+    "classes": [
+      4,
+      5,
+      6
+    ],
+    "cm": [
+      "S",
+      "U",
+      "D"
+    ],
+    "rank_1_only": true,
+    "value_filter": "Off",
+    "irish": "Any",
+    "age_min": 3,
+    "age_max": 9,
+    "ranks": {
+      "Comb. Rank": "Any",
+      "Comp. Rank": "Any",
+      "Speed Rank": "Any",
+      "Race Rank": "Any",
+      "MSAI Rank": "Any",
+      "PRB Rank": "Any",
+      "Trainer PRB Rank": "Rank 1",
+      "Jockey PRB Rank": "Any"
+    }
+  }
 }
