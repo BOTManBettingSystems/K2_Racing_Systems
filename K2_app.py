@@ -1361,6 +1361,12 @@ else:
                     actual_grp_cols = [c for c in ui_group_cols if c in df_filtered.columns]
                     if not actual_grp_cols: actual_grp_cols = ['Race Type']
 
+                    # --- FIX: SINK ZERO-RANKS TO THE BOTTOM ---
+                    # Swap 0 to 999 so unranked horses sink to the bottom of the table instead of the top.
+                    for c in actual_grp_cols:
+                        if 'Rank' in c or 'No. of Top' in c:
+                            df_filtered[c] = df_filtered[c].replace(0, 999)
+
                     breakdown = df_filtered.groupby(actual_grp_cols, observed=False).agg(
                         Bets=('Horse', 'count'), Wins=('Is_Win', 'sum'), Win_Profit=('Win P/L <2%', 'sum'), Places=('Is_Place', 'sum'), Place_Profit=('Place P/L <2%', 'sum')
                     ).reset_index()
@@ -1520,7 +1526,14 @@ else:
                         html_table_out += "<tr>"
                         
                         for col in actual_grp_cols:
-                            html_table_out += f"<td class='left-align'>{row[col]}</td>"
+                            # Catch the 999s and print them cleanly as 'Unranked'
+                            display_val = row[col]
+                            if ('Rank' in col or 'No. of Top' in col) and display_val == 999:
+                                display_val = "Unranked"
+                            elif isinstance(display_val, float) and display_val.is_integer():
+                                display_val = int(display_val)
+                            
+                            html_table_out += f"<td class='left-align'>{display_val}</td>"
                             
                         html_table_out += f"<td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
                     html_table_out += "</tbody></table></div>"
@@ -1689,7 +1702,10 @@ else:
                 race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].copy()
                 
                 if sort_by in race_df.columns:
-                    race_df['sort_temp'] = pd.to_numeric(race_df[sort_by], errors='coerce').fillna(999 if is_asc else -1)
+                    temp_sort_col = pd.to_numeric(race_df[sort_by], errors='coerce')
+                    if 'Rank' in sort_by or 'No. of Top' in sort_by:
+                        temp_sort_col = temp_sort_col.replace(0, 999)
+                    race_df['sort_temp'] = temp_sort_col.fillna(999 if is_asc else -1)
                     race_df = race_df.sort_values(by=['sort_temp', 'Rank'], ascending=[is_asc, True])
                 else:
                     race_df = race_df.sort_values(by=['Pure Rank', 'Rank'], ascending=[True, True])
