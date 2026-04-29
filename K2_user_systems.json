@@ -408,5 +408,85 @@
         "Form Rank": "Rank 1",
         "Pure Rank": "Rank 1"
     }
-}
+},
+"A/W Non H/cap Trainer PRB": {
+        "race_types": [
+            "A/W"
+        ],
+        "hcap_types": [
+            "N"
+        ],
+        "price_min": 0.0,
+        "price_max": 3.0,
+        "min_prob_gap": -1.0,
+        "rnrs": [
+            "2-7",
+            "8-12",
+            "13-16",
+            ">16"
+        ],
+        "classes": [
+            5,
+            6
+        ],
+        "cm": [
+            "U",
+            "S",
+            "D"
+        ],
+        "rank_1_only": true,
+        "value_filter": "Off",
+        "irish": "No (Blank)",
+        "age_min": 1,
+        "age_max": 20,
+        "ranks": {
+            "Comb. Rank": "Any",
+            "Comp. Rank": "Any",
+            "Speed Rank": "Any",
+            "Race Rank": "Any",
+            "MSAI Rank": "Any",
+            "PRB Rank": "Any",
+            "Trainer PRB Rank": "Rank 1",
+            "Jockey PRB Rank": "Any"
+        }
+    },
+    "A/W Handicap Trainer PRB": {
+        "race_types": [
+            "A/W"
+        ],
+        "hcap_types": [
+            "Y"
+        ],
+        "price_min": 4.0,
+        "price_max": 9.0,
+        "min_prob_gap": -1.0,
+        "rnrs": [
+            "8-12",
+            "13-16"
+        ],
+        "classes": [
+            4,
+            5,
+            6
+        ],
+        "cm": [
+            "S",
+            "U",
+            "D"
+        ],
+        "rank_1_only": true,
+        "value_filter": "Off",
+        "irish": "Any",
+        "age_min": 3,
+        "age_max": 9,
+        "ranks": {
+            "Comb. Rank": "Any",
+            "Comp. Rank": "Any",
+            "Speed Rank": "Any",
+            "Race Rank": "Any",
+            "MSAI Rank": "Any",
+            "PRB Rank": "Any",
+            "Trainer PRB Rank": "Rank 1",
+            "Jockey PRB Rank": "Any"
+        }
 }
