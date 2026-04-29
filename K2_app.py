@@ -1182,10 +1182,15 @@ else:
                 
                 groupable_cols.insert(0, 'Month/Year')
                 
+                # Ensure the session state only contains valid options to prevent Streamlit errors
+                if 'ui_group_cols' not in st.session_state:
+                    st.session_state['ui_group_cols'] = ['Edge Bracket', 'Race Type', 'H/Cap']
+                st.session_state['ui_group_cols'] = [c for c in st.session_state['ui_group_cols'] if c in groupable_cols]
+
                 ui_group_cols = st.multiselect(
                     "Select up to 3 factors to group the breakdown table by:", 
                     options=groupable_cols, 
-                    default=st.session_state.get('ui_group_cols', ['Edge Bracket', 'Race Type', 'H/Cap']),
+                    key="ui_group_cols",
                     max_selections=3
                 )
                 
@@ -1274,7 +1279,6 @@ else:
                 st.markdown("---")
 
             if submit_button:
-                st.session_state['ui_group_cols'] = ui_group_cols
                 st.success("✅ System recalculated instantly!")
 
                 mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap) & (b_df['Value_Edge_Perc'] >= min_edge_perc))
