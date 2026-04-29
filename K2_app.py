@@ -1539,8 +1539,7 @@ else:
                             
                             html_table_out += f"<td class='left-align'>{display_val}</td>"
                             
-                        html_table_out += f"<td>{row['Bets']}</td><td>{row['Wins']}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{row['Places']}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
-                    html_table_out += "</tbody></table></div>"
+                        html_table_out += f"<td>{int(row['Bets'])}</td><td>{int(row['Wins'])}</td><td><b>£{row['Win_Profit']:.2f}</b></td><td>{row['Strike Rate (%)']:.2f}%</td><td>{int(row['Places'])}</td><td><b>£{row['Place_Profit']:.2f}</b></td><td>{row['Place SR (%)']:.2f}%</td><td style='color:{t_col};'><b>£{row['Total P/L']:.2f}</b></td></tr>"
 
                     st.session_state['tab4_results'] = {
                         'kpis': kpis,
