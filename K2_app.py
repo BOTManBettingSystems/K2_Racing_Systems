@@ -1611,115 +1611,279 @@ else:
     elif page == "🏇 Race Analysis":
         st.header("🏇 Race Analysis")
         
-        if df_all is not None and not df_all.empty:
-            dates = sorted(df_all['Date'].unique(), reverse=True)
-            sel_date = st.selectbox("Select Date:", dates)
+        st.markdown('''<style>
+            div[data-testid="stButton"] button p {
+                white-space: pre-wrap !important;
+                text-align: center !important;
+                line-height: 1.5 !important;
+            }
+        </style>''', unsafe_allow_html=True)
+        
+        if df_today is not None and not df_today.empty:
+            ta_df = df_today
             
-            courses = sorted(df_all[df_all['Date'] == sel_date]['Course'].unique())
-            sel_course = st.selectbox("Select Course:", courses)
+            ta_df['Time'] = ta_df['Time'].astype(str).str.strip()
+            ta_df['Course'] = ta_df['Course'].astype(str).str.strip()
             
-            times = sorted(df_all[(df_all['Date'] == sel_date) & (df_all['Course'] == sel_course)]['Time'].unique())
-            sel_time = st.selectbox("Select Race Time:", times)
-            
-            race_df = df_all[(df_all['Date'] == sel_date) & (df_all['Course'] == sel_course) & (df_all['Time'] == sel_time)].copy()
-            
-            if not race_df.empty:
-                st.markdown(f"### {sel_course} {sel_time} ({sel_date})")
+            if st.session_state.get('analysis_race'):
+                sel_c = st.session_state.analysis_race['course']
+                sel_t = st.session_state.analysis_race['time']
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    # --- ADDED: 'AI Rank' to the dropdown ---
-                    sort_display = st.selectbox("Sort Race By:", ["AI Rank", "7:30AM Price", "Horse", "Pure Rank", "MSAI Rank", "Comb. Rank", "Comp. Rank", "Speed Rank", "Race Rank", "No. of Top"])
-                with c2:
-                    is_asc = st.radio("Sort Order:", ["Ascending", "Descending"], horizontal=True) == "Ascending"
+                race_info = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)]
+                r_type_str = str(race_info['Race Type'].iloc[0]).strip() if not race_info.empty else "Unknown"
+                r_hcap_str = "Hcap" if not race_info.empty and str(race_info['H/Cap'].iloc[0]).strip() == 'Y' else "Non-Hcap"
                 
-                # --- ADDED: Map 'AI Rank' UI selection to the actual 'Rank' column ---
-                actual_sort_col = "Rank" if sort_display == "AI Rank" else sort_display
+                st.markdown(f"### DETAILED RACE ANALYSIS: {sel_c} | {sel_t} | {r_type_str} ({r_hcap_str})")
+                
+                all_races_df = ta_df[['Time', 'Course']].drop_duplicates().sort_values(['Time', 'Course'])
+                all_races = list(zip(all_races_df['Time'], all_races_df['Course']))
+                curr_r_idx = all_races.index((sel_t, sel_c)) if (sel_t, sel_c) in all_races else -1
+                
+                prev_r = all_races[curr_r_idx - 1] if curr_r_idx > 0 else None
+                next_r = all_races[curr_r_idx + 1] if curr_r_idx != -1 and curr_r_idx < len(all_races) - 1 else None
+                
+                meeting_races_df = ta_df[ta_df['Course'] == sel_c][['Time']].drop_duplicates().sort_values('Time')
+                meeting_races = meeting_races_df['Time'].tolist()
+                curr_m_idx = meeting_races.index(sel_t) if sel_t in meeting_races else -1
+                
+                prev_m = meeting_races[curr_m_idx - 1] if curr_m_idx > 0 else None
+                next_m = meeting_races[curr_m_idx + 1] if curr_m_idx != -1 and curr_m_idx < len(meeting_races) - 1 else None
 
-                # --- BULLETPROOF SORTING FIX ---
+                nav_cols = st.columns(5)
+                with nav_cols[0]:
+                    if prev_r:
+                        if st.button(f"⏪ <R ({prev_r[0]})", use_container_width=True):
+                            st.session_state.analysis_race = {'course': prev_r[1], 'time': prev_r[0]}
+                            st.rerun()
+                with nav_cols[1]:
+                    if prev_m:
+                        if st.button(f"◀ <M ({prev_m})", type="primary", use_container_width=True):
+                            st.session_state.analysis_race = {'course': sel_c, 'time': prev_m}
+                            st.rerun()
+                with nav_cols[2]:
+                    if st.button("🔙 Back to Race Selection", use_container_width=True):
+                        st.session_state.analysis_race = None
+                        st.rerun()
+                with nav_cols[3]:
+                    if next_m:
+                        if st.button(f"M> ({next_m}) ▶", type="primary", use_container_width=True):
+                            st.session_state.analysis_race = {'course': sel_c, 'time': next_m}
+                            st.rerun()
+                with nav_cols[4]:
+                    if next_r:
+                        if st.button(f"R> ({next_r[0]}) ⏩", use_container_width=True):
+                            st.session_state.analysis_race = {'course': next_r[1], 'time': next_r[0]}
+                            st.rerun()
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                if 'ra_sort_by' not in st.session_state: st.session_state.ra_sort_by = "Pure Rank"
+                if 'ra_sort_dir' not in st.session_state: st.session_state.ra_sort_dir = "Ascending (Low to High)"
+                
+                sc1, sc2 = st.columns([1.5, 3])
+                with sc1:
+                    # --- ADDED: 'AI Rank' to the dropdown list ---
+                    sort_cols = ["AI Rank", "Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
+                    
+                    if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
+                        sort_cols.insert(8, "MSAI Rank") # Shifted to 8 to account for AI Rank
+                    
+                    try: current_sort_idx = sort_cols.index(st.session_state.ra_sort_by)
+                    except ValueError: current_sort_idx = 0
+                        
+                    sort_by = st.selectbox("🔀 Sort Analysis By:", sort_cols, index=current_sort_idx)
+                    st.session_state.ra_sort_by = sort_by 
+                    
+                with sc2:
+                    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+                    
+                    dir_idx = 0 if "Ascending" in st.session_state.ra_sort_dir else 1
+                    sort_dir = st.radio("Sort Direction:", ["Ascending (Low to High)", "Descending (High to Low)"], index=dir_idx, horizontal=True, label_visibility="collapsed")
+                    st.session_state.ra_sort_dir = sort_dir 
+                
+                is_asc = "Ascending" in sort_dir
+                
+                race_df = ta_df[(ta_df['Course'] == sel_c) & (ta_df['Time'] == sel_t)].copy()
+                
+                # --- ADDED: Map 'AI Rank' and Bulletproof Sorting Engine ---
+                actual_sort_col = "Rank" if sort_by == "AI Rank" else sort_by
+                
                 if actual_sort_col in race_df.columns:
                     temp_sort_col = pd.to_numeric(race_df[actual_sort_col], errors='coerce')
                     if 'Rank' in actual_sort_col or 'No. of Top' in actual_sort_col:
                         temp_sort_col = temp_sort_col.replace(0, 999)
                     race_df['sort_temp'] = temp_sort_col.fillna(999 if is_asc else -1)
                     
-                    # Safely build the sort list to prevent KeyErrors
-                    sort_cols = ['sort_temp']
-                    asc_flags = [is_asc]
+                    sort_list = ['sort_temp']
+                    asc_list = [is_asc]
                     
                     if 'Rank' in race_df.columns and actual_sort_col != 'Rank':
-                        sort_cols.append('Rank')
-                        asc_flags.append(True)
+                        sort_list.append('Rank')
+                        asc_list.append(True)
                         
-                    race_df = race_df.sort_values(by=sort_cols, ascending=asc_flags)
+                    race_df = race_df.sort_values(by=sort_list, ascending=asc_list)
                 else:
-                    # Safe fallback if the requested column doesn't exist
-                    if 'Rank' in race_df.columns:
-                        race_df = race_df.sort_values(by='Rank', ascending=True)
-                    elif 'Horse' in race_df.columns:
-                        race_df = race_df.sort_values(by='Horse', ascending=True)
-
-                # --- HTML TABLE GENERATION ---
-                html_table = """<style>.race-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .race-table th, .race-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .race-table tr:hover { background-color: #bbdefb !important; color: black !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="race-table" style="min-width: 1000px;"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">Horse</th><th>7:30AM Price</th><th>AI Rank</th><th>Pure Rank</th><th>MSAI Rank</th><th>Comb. Rank</th><th>Comp. Rank</th><th>Speed Rank</th><th>Race Rank</th><th>No. of Top</th></tr></thead><tbody>"""
+                    safe_sort = 'Rank' if 'Rank' in race_df.columns else 'Pure Rank'
+                    if safe_sort in race_df.columns:
+                        race_df = race_df.sort_values(by=[safe_sort], ascending=[True])
                 
-                # Helper function for Ranks 1, 2, 3 colors
-                def get_rank_style(val):
+                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+                
+                show_msai = False
+                if r_type_str in ['A/W', 'Turf']:
+                    irish_col = 'Irish?' if 'Irish?' in race_df.columns else 'Irish' if 'Irish' in race_df.columns else None
+                    is_irish = (race_df[irish_col].astype(str).str.strip().str.upper() == 'Y').any() if irish_col else False
+                    
+                    if not is_irish and 'MSAI Rank' in race_df.columns:
+                        if pd.to_numeric(race_df['MSAI Rank'], errors='coerce').fillna(0).max() > 0:
+                            show_msai = True
+                
+                def gv(r, c, num=False, default="-"):
+                    v = r.get(c, default)
+                    if pd.isna(v) or v == "": return default
+                    if num:
+                        try: return float(v)
+                        except: return default
+                    return v
+                
+                def rc(v):
                     try:
-                        v = int(float(val))
-                        if v == 1: return "background-color: #c8e6c9; font-weight: bold; color: black;" # Green
-                        if v == 2: return "background-color: #fff9c4; font-weight: bold; color: black;" # Yellow
-                        if v == 3: return "background-color: #bbdefb; font-weight: bold; color: black;" # Blue
-                    except:
-                        pass
+                        v = int(float(v))
+                        if v == 1: return "r1"
+                        if v == 2: return "r2"
+                        if v == 3: return "r3"
+                    except: pass
                     return ""
 
-                # Find max 'No. of Top' for the mauve highlight
-                max_top = 0
-                if 'No. of Top' in race_df.columns:
-                    safe_top = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0)
-                    if not safe_top.empty:
-                        max_top = safe_top.max()
+                def fmt_int(v):
+                    try: return str(int(float(v)))
+                    except: return "-"
 
-                for _, row in race_df.iterrows():
-                    html_table += "<tr>"
-                    html_table += f"<td class='left-align'><b>{row.get('Horse', '')}</b></td>"
-                    
-                    price = row.get('7:30AM Price', 0)
-                    html_table += f"<td>{f'{price:.2f}' if pd.notnull(price) and price != 0 else '-'}</td>"
-                    
-                    # --- ADDED: "Rank" (AI Rank) inserted precisely before "Pure Rank" ---
-                    cols_to_show = [("Rank", "AI Rank"), ("Pure Rank", "Pure Rank"), ("MSAI Rank", "MSAI Rank"), 
-                                    ("Comb. Rank", "Comb. Rank"), ("Comp. Rank", "Comp. Rank"), 
-                                    ("Speed Rank", "Speed Rank"), ("Race Rank", "Race Rank")]
-                    
-                    for col_name, _ in cols_to_show:
-                        val = row.get(col_name, 999)
-                        try:
-                            val = int(float(val))
-                        except:
-                            val = 999
-                            
-                        style = get_rank_style(val)
-                        display_val = val if val not in [0, 999] else "-"
-                        html_table += f"<td style='{style}'>{display_val}</td>"
-                        
-                    # No of top logic (Mauve highlight)
-                    top_val = row.get('No. of Top', 0)
-                    try: 
-                        top_val = int(float(top_val))
-                    except: 
-                        top_val = 0
-                        
-                    top_style = "background-color: #e1bee7; font-weight: bold; color: black;" if (top_val == max_top and max_top > 0) else ""
-                    html_table += f"<td style='{top_style}'>{top_val if top_val > 0 else '-'}</td>"
-                    
-                    html_table += "</tr>"
-                    
-                html_table += "</tbody></table></div>"
-                st.markdown(html_table, unsafe_allow_html=True)
+                def fmt_2dp(v):
+                    try: return f"{float(v):.2f}"
+                    except: return "-"
+
+                show_draw = r_type_str in ['A/W', 'Turf']
+                form_colspan = 9 if show_draw else 8
                 
+                html = '<div style="overflow-x: auto; width: 100%;">'
+                html += '<table class="k2-table" style="width:100%; min-width: 950px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
+                headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
+                if show_msai: headers.append("MSAI Rank")
+                
+                headers.extend(["No. of Top", "Primary Rank", "Form Rank"])
+                
+                if 'No. of Top' in race_df.columns:
+                    race_df['No. of Top'] = pd.to_numeric(race_df['No. of Top'], errors='coerce').fillna(0).astype(int)
+                
+                for h in headers: 
+                    w_style = ' style="width: 9%;"' if h == "Horse" else ''
+                    html += f'<th rowspan="2" class="{"left-head" if h == "Horse" else "center-text"}"{w_style}>{h}</th>'
+                
+                html += f'<th colspan="{form_colspan}" class="center-text" style="border-bottom: 1px dashed #ccc; letter-spacing: 2px; color: #a9bacd;">----------------------- FORM -----------------------</th>'
+                # --- ADDED: AI Rank exactly adjacent to Pure Rank ---
+                html += '<th rowspan="2" class="center-text" style="background-color: #000;">AI Rank</th>'
+                html += '<th rowspan="2" class="center-text" style="background-color: #000;">Pure Rank</th></tr><tr style="background-color: #1a3a5f; color: white;">'
+                
+                form_headers = ["Ability", "Going", "Dist.", "Course/Sim", "Trainer", "Jockey"]
+                if show_draw: form_headers.append("Draw")
+                form_headers.extend(["Speed", "Total"])
+                
+                for h in form_headers: 
+                    w_style_f = ' style="width: 8%;"' if h == "Dist." else ''
+                    html += f'<th class="center-text"{w_style_f}>{h}</th>'
+                html += '</tr></thead><tbody>'
+                
+                for _, r in race_df.iterrows():
+                    vp, pr = gv(r,"Value Price",True), gv(r,"7:30AM Price",True)
+                    sr, cr, rr, cpr, prb = gv(r,"Speed Rank"), gv(r,"Comb. Rank"), gv(r,"Race Rank"), gv(r,"Comp. Rank"), gv(r,"PRB Rank")
+                    
+                    pure_r = fmt_int(gv(r, "Pure Rank"))
+                    ai_r = fmt_int(gv(r, "Rank")) # Fetch AI Rank
+                    no_top = fmt_int(gv(r, "No. of Top"))
+                    prim_r = fmt_int(gv(r, "Primary Rank"))
+                    form_r = fmt_int(gv(r, "Form Rank"))
+                    
+                    html += '<tr>'
+                    html += f'<td class="left-text"><b>{gv(r, "Horse")}</b></td>'
+                    html += f'<td class="center-text">{f"{vp:.2f}" if isinstance(vp, float) else vp}</td><td class="center-text">{f"{pr:.2f}" if isinstance(pr, float) else pr}</td>'
+                    html += f'<td class="center-text {rc(sr)}">{sr}</td><td class="center-text {rc(cr)}">{cr}</td><td class="center-text {rc(rr)}">{rr}</td><td class="center-text">{gv(r, "Race Rating", default=0)}</td><td class="center-text {rc(cpr)}">{cpr}</td><td class="center-text {rc(prb)}">{prb}</td>'
+                    
+                    if show_msai:
+                        msai = fmt_int(gv(r, "MSAI Rank"))
+                        html += f'<td class="center-text {rc(msai)}">{msai}</td>'
+                        
+                    html += f'<td class="center-text">{no_top}</td>'
+                    html += f'<td class="center-text {rc(prim_r)}">{prim_r}</td><td class="center-text {rc(form_r)}">{form_r}</td>'
+                    
+                    ab = fmt_2dp(gv(r, "Ability"))
+                    go = fmt_2dp(gv(r, "Going"))
+                    di = fmt_2dp(gv(r, "Distance"))
+                    cs = fmt_2dp(gv(r, "Course/Sim"))
+                    tr = fmt_2dp(gv(r, "TrainrF"))
+                    jo = fmt_2dp(gv(r, "JockyF"))
+                    dr = fmt_2dp(gv(r, "Draw"))
+                    sp = fmt_2dp(gv(r, "Speed"))
+                    ts = fmt_2dp(gv(r, "Total"))
+                    
+                    html += f'<td class="center-text">{ab}</td><td class="center-text">{go}</td><td class="center-text">{di}</td><td class="center-text">{cs}</td><td class="center-text">{tr}</td><td class="center-text">{jo}</td>'
+                    if show_draw:
+                        html += f'<td class="center-text">{dr}</td>'
+                    html += f'<td class="center-text">{sp}</td>'
+                    html += f'<td class="center-text" style="font-weight:bold;">{ts}</td>'
+                    
+                    # --- ADDED: AI Rank Rendered Just Before Pure Rank ---
+                    html += f'<td class="center-text {rc(ai_r)}" style="font-weight:bold;">{ai_r}</td>'
+                    html += f'<td class="center-text {rc(pure_r)}" style="font-weight:bold;">{pure_r}</td>'
+                    html += '</tr>'
+                    
+                html += "</tbody></table></div>"
+                st.markdown(html, unsafe_allow_html=True)
+
+                if st.session_state.get("is_admin"):
+                    st.markdown("<br><hr>", unsafe_allow_html=True)
+                    with st.expander("🧠 Admin: AI Decision X-Ray (Under the Hood)", expanded=False):
+                        st.markdown("This shows the exact raw data the Machine Learning model used to calculate the probabilities for the Top 3 horses in this race.")
+                        
+                        top_3_df = race_df.nsmallest(3, 'Pure Rank').copy()
+                        
+                        if not top_3_df.empty:
+                            xray_cols = ['Horse', 'Pure Rank'] + shadow_feats 
+                            
+                            valid_xray_cols = [c for c in xray_cols if c in top_3_df.columns]
+                            xray_df = top_3_df[valid_xray_cols].set_index('Horse').T
+                            
+                            st.dataframe(
+                                xray_df.style.format("{:.3f}", na_rep="-"),
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("Not enough data to generate X-Ray.")
+                
+            else:
+                st.markdown("### Race Selection")
+                courses = sorted([str(x).strip() for x in ta_df['Course'].dropna().unique() if str(x).strip()])
+                
+                for course in courses:
+                    st.markdown(f"<div style='border-left: 6px solid #1a3a5f; padding-left: 12px; margin-top: 15px; margin-bottom: 10px; font-weight: bold; font-size: 16px; color: #1a3a5f; text-transform: uppercase;'>{course}</div>", unsafe_allow_html=True)
+                    
+                    c_df = ta_df[ta_df['Course'] == course]
+                    races = c_df[['Time', 'Race Type', 'H/Cap']].drop_duplicates().sort_values('Time')
+                    
+                    cols = st.columns(10)
+                    for idx, (_, r_row) in enumerate(races.iterrows()):
+                        r_time = str(r_row['Time']).strip()
+                        r_type = str(r_row['Race Type']).strip()
+                        r_hcap = "Hcap" if str(r_row['H/Cap']).strip() == 'Y' else "Non-Hcap"
+                        
+                        btn_text = f"{r_time}\n{r_type} | {r_hcap}"
+                        
+                        if cols[idx % 10].button(btn_text, key=f"nav_{course}_{r_time}", use_container_width=True):
+                            st.session_state.analysis_race = {'course': course, 'time': r_time}
+                            st.rerun()
+
         else:
-            st.info("No data available to analyze.")
+            st.info("No data available for today's races.")
     # =========================================================================
     # 🧪 PAGE 6: ACID TEST ENVIRONMENT (OUT-OF-SAMPLE VALUE TEST)
     # =========================================================================
