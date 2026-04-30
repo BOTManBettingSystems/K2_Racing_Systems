@@ -268,23 +268,21 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['Rank2_Prob'] = b_df.groupby(['Date_Key', 'Time', 'Course'])['ML_Prob'].transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else 0)
         
     b_df['Prob Gap'] = b_df['ML_Prob'] - b_df['Rank2_Prob']
-    b_df['User Value'] = pd.to_numeric(b_df.get('Value', 0), errors='coerce')
         
     bins = [-1.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 15.0, 20.0, 50.0, 100.0, 1000.0]
     labels = ["<1.0", "1.0-2.0", "2.01-3.0", "3.01-4.0", "4.01-5.0", "5.01-6.0", "6.01-7.0", "7.01-8.0", "8.01-9.0", "9.01-10.0", "10.01-11.0", "11.01-15.0", "15.01-20.0", "20.01-50.0", "50.01-100.0", "100.01+"]
     b_df['Price Bracket'] = pd.cut(b_df['7:30AM Price'], bins=bins, labels=labels, right=True)
     b_df['Price Bracket'] = b_df['Price Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     
-    # --- TRUE VALUE PRICING (THE PRICER BRAIN) ---
+    # --- TRUE VALUE PRICING (THE TWO BRAINS) ---
+    b_df['AI Value'] = np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0)
+    
     if _cal_model is not None:
         b_df['True_AI_Prob'] = _cal_model.predict_proba(b_df[feats].fillna(0))[:, 1]
-        b_df['True_Value_Price'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
-        
-        # Override the old hallucinatory Value Price with the true calibrated price
-        b_df['Value Price'] = b_df['True_Value_Price']
+        b_df['Pure Value'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
         
         b_df['Market_Price'] = np.where(b_df['BSP'] > 0, b_df['BSP'], b_df['7:30AM Price'])
-        b_df['Value_Edge_Perc'] = ((b_df['Market_Price'] / b_df['True_Value_Price']) - 1) * 100
+        b_df['Value_Edge_Perc'] = ((b_df['Market_Price'] / b_df['Pure Value']) - 1) * 100
         
         # Base initial brackets (dynamically overwritten later in the builder if sliders used)
         v_bins = [-np.inf, 0.0, 10.0, np.inf]
@@ -292,7 +290,7 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['Edge Bracket'] = pd.cut(b_df['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
         b_df['Edge Bracket'] = b_df['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     else:
-        b_df['Value Price'] = 1 / b_df['ML_Prob'] # Fallback
+        b_df['Pure Value'] = b_df['AI Value']
         b_df['Value_Edge_Perc'] = 0.0
         b_df['Edge Bracket'] = 'Unknown'
         
@@ -757,13 +755,13 @@ else:
 
                                 vf = s_data.get('value_filter', "Off")
                                 if vf in ["Value vs 7:30AM Price", "Value vs BSP", "AI Value vs 7:30AM", "AI Value vs BSP"]: 
-                                    s_mask &= (t_df['7:30AM Price'] > t_df['Value Price'])
-                                elif vf in ["My Value vs 7:30AM", "My Value vs BSP"]: 
-                                    s_mask &= (t_df['7:30AM Price'] > t_df['User Value'])
+                                    s_mask &= (t_df['7:30AM Price'] > t_df['AI Value'])
+                                elif vf in ["My Value vs 7:30AM", "My Value vs BSP", "Pure Value vs 7:30AM", "Pure Value vs BSP"]: 
+                                    s_mask &= (t_df['7:30AM Price'] > t_df['Pure Value'])
                                 elif vf in ["NOT AI Value vs 7:30AM", "NOT AI Value vs BSP"]:
-                                    s_mask &= (t_df['7:30AM Price'] < t_df['Value Price'])
-                                elif vf in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP"]:
-                                    s_mask &= (t_df['7:30AM Price'] < t_df['User Value'])
+                                    s_mask &= (t_df['7:30AM Price'] < t_df['AI Value'])
+                                elif vf in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP", "NOT Pure Value vs 7:30AM", "NOT Pure Value vs BSP"]:
+                                    s_mask &= (t_df['7:30AM Price'] < t_df['Pure Value'])
 
                                 rnrs = s_data.get('rnrs', [])
                                 r_m = pd.Series(False, index=t_df.index)
@@ -1010,7 +1008,7 @@ else:
             
             all_months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
             ai_rank_opts = ["Any", "AI Rank 1 Only", "Top 2 Only", "NOT AI Rank 1", "NOT Top 3"]
-            value_opts = ["Off", "AI Value vs 7:30AM", "AI Value vs BSP", "My Value vs 7:30AM", "My Value vs BSP", "NOT AI Value vs 7:30AM", "NOT AI Value vs BSP", "NOT My Value vs 7:30AM", "NOT My Value vs BSP"]
+            value_opts = ["Off", "AI Value vs 7:30AM", "AI Value vs BSP", "Pure Value vs 7:30AM", "Pure Value vs BSP", "NOT AI Value vs 7:30AM", "NOT AI Value vs BSP", "NOT Pure Value vs 7:30AM", "NOT Pure Value vs BSP"]
             irish_opts = ["Any", "Y (Yes)", "No (Blank)"]
             rank_opts = ["Any", "Rank 1", "Top 2", "Top 3", "Top 4", "Top 5", "Not Top 3"]
             
@@ -1296,14 +1294,14 @@ else:
                 elif ai_rank_filter == "NOT AI Rank 1": mask = mask & (b_df['Rank'] > 1)
                 elif ai_rank_filter == "NOT Top 3": mask = mask & (b_df['Rank'] > 3)
                 
-                if value_filter in ["Value vs 7:30AM Price", "AI Value vs 7:30AM"]: mask = mask & (b_df['7:30AM Price'] > b_df['Value Price'])
-                elif value_filter in ["Value vs BSP", "AI Value vs BSP"]: mask = mask & (b_df['BSP'] > b_df['Value Price'])
-                elif value_filter == "My Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] > b_df['User Value'])
-                elif value_filter == "My Value vs BSP": mask = mask & (b_df['BSP'] > b_df['User Value'])
-                elif value_filter == "NOT AI Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['Value Price'])
-                elif value_filter == "NOT AI Value vs BSP": mask = mask & (b_df['BSP'] < b_df['Value Price'])
-                elif value_filter == "NOT My Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['User Value'])
-                elif value_filter == "NOT My Value vs BSP": mask = mask & (b_df['BSP'] < b_df['User Value'])
+                if value_filter in ["Value vs 7:30AM Price", "AI Value vs 7:30AM"]: mask = mask & (b_df['7:30AM Price'] > b_df['AI Value'])
+                elif value_filter in ["Value vs BSP", "AI Value vs BSP"]: mask = mask & (b_df['BSP'] > b_df['AI Value'])
+                elif value_filter == "Pure Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] > b_df['Pure Value'])
+                elif value_filter == "Pure Value vs BSP": mask = mask & (b_df['BSP'] > b_df['Pure Value'])
+                elif value_filter == "NOT AI Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['AI Value'])
+                elif value_filter == "NOT AI Value vs BSP": mask = mask & (b_df['BSP'] < b_df['AI Value'])
+                elif value_filter == "NOT Pure Value vs 7:30AM": mask = mask & (b_df['7:30AM Price'] < b_df['Pure Value'])
+                elif value_filter == "NOT Pure Value vs BSP": mask = mask & (b_df['BSP'] < b_df['Pure Value'])
                 
                 rnr_mask = pd.Series(False, index=b_df.index)
                 if "2-7" in selected_rnrs: rnr_mask |= (b_df['No. of Rnrs'] >= 2) & (b_df['No. of Rnrs'] <= 7)
@@ -1460,13 +1458,13 @@ else:
                         elif ai_rank_filter == "NOT Top 3": t_mask = t_mask & (t_df['Rank'] > 3)
                         
                         if value_filter in ["Value vs 7:30AM Price", "Value vs BSP", "AI Value vs 7:30AM", "AI Value vs BSP"]: 
-                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['Value Price'])
-                        elif value_filter in ["My Value vs 7:30AM", "My Value vs BSP"]: 
-                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['User Value'])
+                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['AI Value'])
+                        elif value_filter in ["Pure Value vs 7:30AM", "Pure Value vs BSP"]: 
+                            t_mask = t_mask & (t_df['7:30AM Price'] > t_df['Pure Value'])
                         elif value_filter in ["NOT AI Value vs 7:30AM", "NOT AI Value vs BSP"]:
-                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['Value Price'])
-                        elif value_filter in ["NOT My Value vs 7:30AM", "NOT My Value vs BSP"]:
-                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['User Value'])
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['AI Value'])
+                        elif value_filter in ["NOT Pure Value vs 7:30AM", "NOT Pure Value vs BSP"]:
+                            t_mask = t_mask & (t_df['7:30AM Price'] < t_df['Pure Value'])
                         
                         t_rnr_mask = pd.Series(False, index=t_df.index)
                         if "2-7" in selected_rnrs: t_rnr_mask |= (t_df['No. of Rnrs'] >= 2) & (t_df['No. of Rnrs'] <= 7)
@@ -1683,7 +1681,7 @@ else:
                 sc1, sc2 = st.columns([1.5, 3])
                 with sc1:
                     # --- ADDED: 'AI Rank' to the dropdown list ---
-                    sort_cols = ["AI Rank", "Pure Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "Value Price"]
+                    sort_cols = ["Pure Rank", "AI Rank", "7:30AM Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank", "No. of Top", "Primary Rank", "Form Rank", "AI Value", "Pure Value"]
                     
                     if r_type_str in ['A/W', 'Turf'] and 'MSAI Rank' in ta_df.columns:
                         sort_cols.insert(8, "MSAI Rank") # Shifted to 8 to account for AI Rank
@@ -1768,7 +1766,7 @@ else:
                 
                 html = '<div style="overflow-x: auto; width: 100%;">'
                 html += '<table class="k2-table" style="width:100%; min-width: 950px;"><thead><tr style="background-color: #1a3a5f; color: white;">'
-                headers = ["Horse", "Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
+                headers = ["Horse", "AI Value", "Pure Value", "7:30am Price", "Speed Rank", "Comb. Rank", "Race Rank", "Race Rating", "Comp. Rank", "PRB Rank"]
                 if show_msai: headers.append("MSAI Rank")
                 
                 headers.extend(["No. of Top", "Primary Rank", "Form Rank"])
@@ -1795,7 +1793,7 @@ else:
                 html += '</tr></thead><tbody>'
                 
                 for _, r in race_df.iterrows():
-                    vp, pr = gv(r,"Value Price",True), gv(r,"7:30AM Price",True)
+                    aiv, puv, pr = gv(r,"AI Value",True), gv(r,"Pure Value",True), gv(r,"7:30AM Price",True)
                     sr, cr, rr, cpr, prb = gv(r,"Speed Rank"), gv(r,"Comb. Rank"), gv(r,"Race Rank"), gv(r,"Comp. Rank"), gv(r,"PRB Rank")
                     
                     pure_r = fmt_int(gv(r, "Pure Rank"))
@@ -1806,7 +1804,7 @@ else:
                     
                     html += '<tr>'
                     html += f'<td class="left-text"><b>{gv(r, "Horse")}</b></td>'
-                    html += f'<td class="center-text">{f"{vp:.2f}" if isinstance(vp, float) else vp}</td><td class="center-text">{f"{pr:.2f}" if isinstance(pr, float) else pr}</td>'
+                    html += f'<td class="center-text">{f"{aiv:.2f}" if isinstance(aiv, float) else aiv}</td><td class="center-text">{f"{puv:.2f}" if isinstance(puv, float) else puv}</td><td class="center-text">{f"{pr:.2f}" if isinstance(pr, float) else pr}</td>'
                     html += f'<td class="center-text {rc(sr)}">{sr}</td><td class="center-text {rc(cr)}">{cr}</td><td class="center-text {rc(rr)}">{rr}</td><td class="center-text">{gv(r, "Race Rating", default=0)}</td><td class="center-text {rc(cpr)}">{cpr}</td><td class="center-text {rc(prb)}">{prb}</td>'
                     
                     if show_msai:
