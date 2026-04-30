@@ -603,7 +603,7 @@ else:
                             html += f'<tr class="{row_cls}"><td style="width:{w[0]};" class="center-text">{r["Date"]}</td><td style="width:{w[1]};" class="center-text">{r["Time"]}</td><td style="width:{w[2]};" class="left-text">{r["Course"]}</td><td style="width:{w[3]};" class="left-text"><b>{r["Horse"]}</b></td><td style="width:{w[4]};" class="center-text">{round(r["7:30AM Price"], 2)}</td><td style="width:{w[5]};" class="center-text">{round(r["ML_Prob"], 4)}</td><td style="width:{w[6]};" class="{r_cls} center-text">{rv}</td><td style="width:{w[7]};" class="center-text">{int(r["No. of Top"])}</td></tr>'
                         st.markdown(html + '</tbody></table></div>', unsafe_allow_html=True)
                     with b_col:
-                        if st.button("➖" if is_expanded else "➕", key="btn_"+race_id):
+                        if st.button("-\u200B" if is_expanded else "+\u200B", key="btn_"+race_id):
                             if is_expanded: st.session_state.expanded_races.remove(race_id)
                             else: st.session_state.expanded_races.add(race_id)
                             st.rerun()
