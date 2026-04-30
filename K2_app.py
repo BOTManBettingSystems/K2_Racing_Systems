@@ -1605,7 +1605,7 @@ else:
 
                     st.markdown("### Detailed Preview Breakdown")
                     st.markdown(res['breakdown_html'], unsafe_allow_html=True)
-   # =========================================================================
+# =========================================================================
     # 🏇 PAGE 5: RACE ANALYSIS
     # =========================================================================
     elif page == "🏇 Race Analysis":
@@ -1636,15 +1636,28 @@ else:
                 # --- ADDED: Map 'AI Rank' UI selection to the actual 'Rank' column ---
                 actual_sort_col = "Rank" if sort_display == "AI Rank" else sort_display
 
-                # --- 0->999 Sorting Fix (Kept Intact) ---
+                # --- BULLETPROOF SORTING FIX ---
                 if actual_sort_col in race_df.columns:
                     temp_sort_col = pd.to_numeric(race_df[actual_sort_col], errors='coerce')
                     if 'Rank' in actual_sort_col or 'No. of Top' in actual_sort_col:
                         temp_sort_col = temp_sort_col.replace(0, 999)
                     race_df['sort_temp'] = temp_sort_col.fillna(999 if is_asc else -1)
-                    race_df = race_df.sort_values(by=['sort_temp', 'Rank'], ascending=[is_asc, True])
+                    
+                    # Safely build the sort list to prevent KeyErrors
+                    sort_cols = ['sort_temp']
+                    asc_flags = [is_asc]
+                    
+                    if 'Rank' in race_df.columns and actual_sort_col != 'Rank':
+                        sort_cols.append('Rank')
+                        asc_flags.append(True)
+                        
+                    race_df = race_df.sort_values(by=sort_cols, ascending=asc_flags)
                 else:
-                    race_df = race_df.sort_values(by='Rank', ascending=True)
+                    # Safe fallback if the requested column doesn't exist
+                    if 'Rank' in race_df.columns:
+                        race_df = race_df.sort_values(by='Rank', ascending=True)
+                    elif 'Horse' in race_df.columns:
+                        race_df = race_df.sort_values(by='Horse', ascending=True)
 
                 # --- HTML TABLE GENERATION ---
                 html_table = """<style>.race-table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: sans-serif; margin-top: 15px; } .race-table th, .race-table td { border: 1px solid #ccc; padding: 6px; text-align: center; } .race-table tr:hover { background-color: #bbdefb !important; color: black !important; } .left-align { text-align: left !important; padding-left: 8px !important; }</style><div style="overflow-x: auto; width: 100%;"><table class="race-table" style="min-width: 1000px;"><thead><tr style="background-color: #1a3a5f; color: white;"><th class="left-align">Horse</th><th>7:30AM Price</th><th>AI Rank</th><th>Pure Rank</th><th>MSAI Rank</th><th>Comb. Rank</th><th>Comp. Rank</th><th>Speed Rank</th><th>Race Rank</th><th>No. of Top</th></tr></thead><tbody>"""
