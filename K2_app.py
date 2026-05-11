@@ -201,9 +201,21 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         vault_df['Course'] = vault_df['Course'].astype(str).str.strip().str.title()
         vault_df['Horse'] = vault_df['Horse'].astype(str).str.strip().str.title()
         
-        b_df = pd.merge(b_df, vault_df[vault_keys + ['ML_Prob', 'Shadow_Prob']], on=vault_keys, how='left')
+        # --- FIXED: Pulling AI Value and Pure Value out of the vault if they exist ---
+        merge_cols = ['ML_Prob', 'Shadow_Prob']
+        if 'AI Value' in vault_df.columns: merge_cols.append('AI Value')
+        if 'Pure Value' in vault_df.columns: merge_cols.append('Pure Value')
+        
+        b_df = pd.merge(b_df, vault_df[vault_keys + merge_cols], on=vault_keys, how='left')
         b_df['ML_Prob'] = pd.to_numeric(b_df['ML_Prob'], errors='coerce')
         b_df['Shadow_Prob'] = pd.to_numeric(b_df['Shadow_Prob'], errors='coerce')
+        
+        if 'AI Value' in b_df.columns:
+            b_df['Vault_AI_Value'] = pd.to_numeric(b_df['AI Value'], errors='coerce')
+            b_df = b_df.drop(columns=['AI Value']) # Drop temporarily so calculation below applies cleanly
+        if 'Pure Value' in b_df.columns:
+            b_df['Vault_Pure_Value'] = pd.to_numeric(b_df['Pure Value'], errors='coerce')
+            b_df = b_df.drop(columns=['Pure Value'])
     else:
         b_df['ML_Prob'] = np.nan
         b_df['Shadow_Prob'] = np.nan
@@ -275,11 +287,23 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     b_df['Price Bracket'] = b_df['Price Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     
     # --- TRUE VALUE PRICING (THE TWO BRAINS) ---
-    b_df['AI Value'] = np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0)
-    
+    # Calculate or Load AI Value
+    if 'Vault_AI_Value' in b_df.columns:
+        b_df['AI Value'] = b_df['Vault_AI_Value'].fillna(np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0))
+    else:
+        b_df['AI Value'] = np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0)
+
     if _cal_model is not None:
         b_df['True_AI_Prob'] = _cal_model.predict_proba(b_df[feats].fillna(0))[:, 1]
-        b_df['Pure Value'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
+        
+        # Calculate or Load Pure Value
+        if 'Vault_Pure_Value' in b_df.columns:
+            b_df['Pure Value'] = b_df['Vault_Pure_Value'].fillna(np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0))
+        else:
+            b_df['Pure Value'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
+        
+        # Map Pure Value back to 'Value Price' so existing legacy systems don't break
+        b_df['Value Price'] = b_df['Pure Value']
         
         b_df['Market_Price'] = np.where(b_df['BSP'] > 0, b_df['BSP'], b_df['7:30AM Price'])
         b_df['Value_Edge_Perc'] = ((b_df['Market_Price'] / b_df['Pure Value']) - 1) * 100
@@ -291,6 +315,7 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
         b_df['Edge Bracket'] = b_df['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
     else:
         b_df['Pure Value'] = b_df['AI Value']
+        b_df['Value Price'] = b_df['AI Value'] # Fallback
         b_df['Value_Edge_Perc'] = 0.0
         b_df['Edge Bracket'] = 'Unknown'
         
@@ -1210,14 +1235,20 @@ else:
                                 vault_file = "K2_Prediction_Vault.csv"
                                 if os.path.exists(vault_file):
                                     v_df = pd.read_csv(vault_file)
-                                    today_export = df_today[['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob']].copy()
+                                    # --- FIXED: Now capturing AI Value and Pure Value into the Vault ---
+                                    export_cols = ['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob']
+                                    if 'AI Value' in df_today.columns: export_cols.append('AI Value')
+                                    if 'Pure Value' in df_today.columns: export_cols.append('Pure Value')
+                                    
+                                    today_export = df_today[export_cols].copy()
                                     today_export['Date_Key'] = today_export['Date_Key'].astype(str)
                                     today_export['Time'] = today_export['Time'].astype(str).str.split('.').str[0].str.strip()
                                     today_export['Course'] = today_export['Course'].astype(str).str.strip().str.title()
                                     today_export['Horse'] = today_export['Horse'].astype(str).str.strip().str.title()
                                     
-                                    for col in ['ML_Prob', 'Shadow_Prob']:
-                                        today_export[col] = pd.to_numeric(today_export[col], errors='coerce').round(6)
+                                    for col in ['ML_Prob', 'Shadow_Prob', 'AI Value', 'Pure Value']:
+                                        if col in today_export.columns:
+                                            today_export[col] = pd.to_numeric(today_export[col], errors='coerce').round(6)
                                         
                                     updated_vault = pd.concat([v_df, today_export], ignore_index=True)
                                     updated_vault = updated_vault.drop_duplicates(subset=['Date_Key', 'Time', 'Course', 'Horse'], keep='last')
@@ -2019,11 +2050,11 @@ else:
         st.sidebar.markdown("<span style='font-size:12px;'>Generate a master snapshot of all historical AI probabilities to lock in backtests against model drift.</span>", unsafe_allow_html=True)
         
         if df_all_prepped is not None and not df_all_prepped.empty:
-            vault_export_cols = ['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob']
+            vault_export_cols = ['Date_Key', 'Time', 'Course', 'Horse', 'ML_Prob', 'Shadow_Prob', 'AI Value', 'Pure Value']
             existing_v_cols = [c for c in vault_export_cols if c in df_all_prepped.columns]
             vault_export_df = df_all_prepped[existing_v_cols].copy()
             
-            for col in ['ML_Prob', 'Shadow_Prob']:
+            for col in ['ML_Prob', 'Shadow_Prob', 'AI Value', 'Pure Value']:
                 if col in vault_export_df.columns:
                     vault_export_df[col] = vault_export_df[col].round(6)
             
