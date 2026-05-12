@@ -285,22 +285,23 @@ def prep_system_builder_data(_df, _model, feats, _shadow_model=None, shadow_feat
     labels = ["<1.0", "1.0-2.0", "2.01-3.0", "3.01-4.0", "4.01-5.0", "5.01-6.0", "6.01-7.0", "7.01-8.0", "8.01-9.0", "9.01-10.0", "10.01-11.0", "11.01-15.0", "15.01-20.0", "20.01-50.0", "50.01-100.0", "100.01+"]
     b_df['Price Bracket'] = pd.cut(b_df['7:30AM Price'], bins=bins, labels=labels, right=True)
     b_df['Price Bracket'] = b_df['Price Bracket'].cat.add_categories('Unknown').fillna('Unknown')
-    
     # --- TRUE VALUE PRICING (THE TWO BRAINS) ---
     # Calculate or Load AI Value
+    calc_ai_val = np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0)
     if 'Vault_AI_Value' in b_df.columns:
-        b_df['AI Value'] = b_df['Vault_AI_Value'].fillna(np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0))
+        b_df['AI Value'] = np.where(b_df['Vault_AI_Value'].isna(), calc_ai_val, b_df['Vault_AI_Value'])
     else:
-        b_df['AI Value'] = np.where(b_df['ML_Prob'] > 0.001, 1.0 / b_df['ML_Prob'], 1000.0)
+        b_df['AI Value'] = calc_ai_val
 
     if _cal_model is not None:
         b_df['True_AI_Prob'] = _cal_model.predict_proba(b_df[feats].fillna(0))[:, 1]
         
         # Calculate or Load Pure Value
+        calc_pure_val = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
         if 'Vault_Pure_Value' in b_df.columns:
-            b_df['Pure Value'] = b_df['Vault_Pure_Value'].fillna(np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0))
+            b_df['Pure Value'] = np.where(b_df['Vault_Pure_Value'].isna(), calc_pure_val, b_df['Vault_Pure_Value'])
         else:
-            b_df['Pure Value'] = np.where(b_df['True_AI_Prob'] > 0.001, 1.0 / b_df['True_AI_Prob'], 1000.0)
+            b_df['Pure Value'] = calc_pure_val
         
         # Map Pure Value back to 'Value Price' so existing legacy systems don't break
         b_df['Value Price'] = b_df['Pure Value']
