@@ -1311,7 +1311,17 @@ else:
             if submit_button:
                 st.success("✅ System recalculated instantly!")
 
-                mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap) & (b_df['Value_Edge_Perc'] >= min_edge_perc))
+                # --- DYNAMIC EDGE CALCULATION (HISTORICAL) ---
+                target_val_col = 'AI Value' if "AI Value" in value_filter else 'User Value' if "My Value" in value_filter else 'Pure Value'
+                
+                if "7:30AM" in value_filter:
+                    b_market_p = b_df['7:30AM Price']
+                else:
+                    b_market_p = np.where(b_df['BSP'] > 0, b_df['BSP'], b_df['7:30AM Price'])
+                    
+                dynamic_edge = ((b_market_p / b_df[target_val_col]) - 1) * 100
+
+                mask = (b_df['Race Type'].isin(selected_race_types) & b_df['H/Cap'].isin(selected_hcap) & (b_df['7:30AM Price'] >= price_min) & (b_df['7:30AM Price'] <= price_max) & (b_df['Prob Gap'] >= min_prob_gap) & (dynamic_edge >= min_edge_perc))
                 
                 if len(date_range) == 2: mask = mask & (b_df['Date_DT'].dt.date >= date_range[0]) & (b_df['Date_DT'].dt.date <= date_range[1])
                 elif len(date_range) == 1: mask = mask & (b_df['Date_DT'].dt.date == date_range[0])
@@ -1380,11 +1390,14 @@ else:
                 df_filtered = b_df[mask].copy()
 
                 if not df_filtered.empty:
-                    # --- NEW: DYNAMIC EDGE BRACKETS ---
+                    # --- NEW: DYNAMIC EDGE BRACKETS (HISTORICAL) ---
+                    f_market_p = df_filtered['7:30AM Price'] if "7:30AM" in value_filter else np.where(df_filtered['BSP'] > 0, df_filtered['BSP'], df_filtered['7:30AM Price'])
+                    f_edge = ((f_market_p / df_filtered[target_val_col]) - 1) * 100
+
                     safe_b2 = max(bracket_1 + 0.1, float(bracket_2))
                     v_bins = [-np.inf, bracket_1, safe_b2, np.inf]
                     v_labels = [f'1. Negative Edge (< {bracket_1}%)', f'2. Fair Value ({bracket_1}% to {safe_b2:.1f}%)', f'3. Deep Value (> {safe_b2:.1f}%)']
-                    df_filtered['Edge Bracket'] = pd.cut(df_filtered['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
+                    df_filtered['Edge Bracket'] = pd.cut(f_edge, bins=v_bins, labels=v_labels)
                     df_filtered['Edge Bracket'] = df_filtered['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
                     
                     if 'Date_DT' in df_filtered.columns:
@@ -1396,7 +1409,6 @@ else:
                     if not actual_grp_cols: actual_grp_cols = ['Race Type']
 
                     # --- FIX: SINK ZERO-RANKS TO THE BOTTOM ---
-                    # Swap 0 to 999 so unranked horses sink to the bottom of the table instead of the top.
                     for c in actual_grp_cols:
                         if 'Rank' in c or 'No. of Top' in c:
                             df_filtered[c] = df_filtered[c].replace(0, 999)
@@ -1479,7 +1491,12 @@ else:
                     if df_today is not None and not df_today.empty:
                         t_df = df_today
                         
-                        t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap) & (t_df['Value_Edge_Perc'] >= min_edge_perc))
+                        # --- DYNAMIC EDGE FOR LIVE ---
+                        t_target_col = 'AI Value' if "AI Value" in value_filter else 'User Value' if "My Value" in value_filter else 'Pure Value'
+                        t_market_p = t_df['7:30AM Price'] if "7:30AM" in value_filter else np.where(t_df['BSP'] > 0, t_df['BSP'], t_df['7:30AM Price'])
+                        t_dynamic_edge = ((t_market_p / t_df[t_target_col]) - 1) * 100
+
+                        t_mask = (t_df['Race Type'].isin(selected_race_types) & t_df['H/Cap'].isin(selected_hcap) & (t_df['7:30AM Price'] >= price_min) & (t_df['7:30AM Price'] <= price_max) & (t_df['Prob Gap'] >= min_prob_gap) & (t_dynamic_edge >= min_edge_perc))
                         
                         if len(selected_months) < 12:
                             t_mask = t_mask & t_df['Date_DT'].dt.month.isin(sel_m_nums)
@@ -1532,7 +1549,10 @@ else:
                         
                         if not t_filtered.empty:
                             # --- NEW: DYNAMIC EDGE BRACKETS (TODAY'S QUALIFIERS) ---
-                            t_filtered['Edge Bracket'] = pd.cut(t_filtered['Value_Edge_Perc'], bins=v_bins, labels=v_labels)
+                            tf_market_p = t_filtered['7:30AM Price'] if "7:30AM" in value_filter else np.where(t_filtered['BSP'] > 0, t_filtered['BSP'], t_filtered['7:30AM Price'])
+                            tf_edge = ((tf_market_p / t_filtered[t_target_col]) - 1) * 100
+                            
+                            t_filtered['Edge Bracket'] = pd.cut(tf_edge, bins=v_bins, labels=v_labels)
                             t_filtered['Edge Bracket'] = t_filtered['Edge Bracket'].cat.add_categories('Unknown').fillna('Unknown')
                             
                             t_filtered = t_filtered.sort_values(by=['Time', 'Course'])
